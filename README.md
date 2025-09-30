@@ -2,6 +2,8 @@
 
 This is a repository of pre-configured Visual Studio Code development environments for containerized agentic coding. They require you have Visual Studio Code with the Dev Containers extension and Docker Desktop installed and running.
 
+Clone the repo, open the desired folder in VSC, "Reopen in container", and once it's setup you auth the agent and start coding with playwright able to test workflows, etc.
+
 ## Available Environments
 
 ### `playwright-mcp-claude-codex-gemini-python`
