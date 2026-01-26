@@ -39,6 +39,9 @@ The container also includes commands and subagents to help guide Claude Code wit
 - **`playwright-form-validator`** - Fills and validates complex forms
 - **`playwright-web-evaluator`** - General web page analysis and interaction
 
+### Skills (Claude only)
+- **`social-seo`** - Implement SEO and social sharing for web apps (meta tags, Open Graph, social cards, PWA support)
+
 ## Known Limitations
 
 ### Gemini CLI Screenshot Issue (September 2024)
@@ -151,6 +154,23 @@ You can list all your agents with `/agents`.
 
 **Note:** There is no special slash command for agents. Just describe what you want to test, and Claude will handle the rest!
 
+## Using Skills (Claude only)
+
+Skills are invoked with slash commands. This container includes:
+
+### Social & SEO Implementation
+```bash
+# Implement full SEO and social sharing
+/social-seo all
+
+# Or implement specific phases
+/social-seo phase1  # Foundation: meta tags, social card, robots.txt
+/social-seo phase2  # Enhancement: PWA, structured data, share buttons
+/social-seo phase3  # Advanced: shareable result links
+```
+
+The social-seo skill guides Claude through implementing Open Graph tags, Twitter cards, social card images (using Playwright to capture screenshots), PWA manifests, and more.
+
 ## Available Browser Control Commands
 
 All AI assistants can use these MCP commands:
@@ -236,10 +256,14 @@ As of September 27, 2024, Gemini CLI returns API errors when taking screenshots.
 ### Package Installation Issues
 Some AI CLI tools may not be available via npm. The setup will continue even if certain packages fail to install.
 
-## Available Commands (Claude only)
+## Available Commands and Skills (Claude only)
 
+### Commands
 - `/playwrightcheck` - Validate Playwright setup
 - `/playwrightprep` - Prepare Playwright environment
+
+### Skills
+- `/social-seo` - Implement SEO and social sharing (meta tags, Open Graph, PWA, social cards)
 
 ## Why Multiple AI Assistants?
 

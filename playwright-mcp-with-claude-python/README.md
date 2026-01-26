@@ -37,6 +37,9 @@ The container also includes commands and subagents to help guide Claude Code wit
 - **`playwright-form-validator`** - Fills and validates complex forms
 - **`playwright-web-evaluator`** - General web page analysis and interaction
 
+### Skills
+- **`social-seo`** - Implement SEO and social sharing for web apps (meta tags, Open Graph, social cards, PWA support)
+
 ## Getting Started
 
 ### Quick Start with VS Code
@@ -107,6 +110,23 @@ You can list all your agents with `/agents`.
 
 **Note:** There is no special slash command for agents. Just describe what you want to test, and Claude will handle the rest!
 
+## Using Skills
+
+Skills are invoked with slash commands. This container includes:
+
+### Social & SEO Implementation
+```bash
+# Implement full SEO and social sharing
+/social-seo all
+
+# Or implement specific phases
+/social-seo phase1  # Foundation: meta tags, social card, robots.txt
+/social-seo phase2  # Enhancement: PWA, structured data, share buttons
+/social-seo phase3  # Advanced: shareable result links
+```
+
+The social-seo skill guides Claude through implementing Open Graph tags, Twitter cards, social card images (using Playwright to capture screenshots), PWA manifests, and more.
+
 ## Configuration
 
 ### Browser Settings (`.playwright-mcp.json`)
@@ -151,6 +171,15 @@ Pre-configured to allow all browser control operations while maintaining securit
 - Accessibility testing for desired compliance
 - Performance monitoring and optimization
 - Cross-browser compatibility checks
+
+## Available Commands and Skills
+
+### Commands
+- `/playwrightcheck` - Validate Playwright setup
+- `/playwrightprep` - Prepare Playwright environment
+
+### Skills
+- `/social-seo` - Implement SEO and social sharing (meta tags, Open Graph, PWA, social cards)
 
 ## Disclaimer
 

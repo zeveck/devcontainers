@@ -12,7 +12,8 @@ Multiple AI assistants can directly control web browsers and interpret screensho
 - **Browser Control**: Playwright MCP server provides direct browser automation
 - **AI Assistants**: Claude Code, Codex CLI, and Gemini CLI with browser access
 - **Development Stack**: Python 3.12, Node.js 22
-- **Pre-configured Agents**: Specialized Claude agents that work behind the scenes
+- **Pre-configured Agents**: Specialized Claude agents for testing and evaluation
+- **Skills**: Social/SEO implementation with Playwright-powered social card generation
 
 ### `playwright-mcp-with-claude-python`
 Claude Code can directly control web browsers and interpret screenshots:
@@ -20,7 +21,8 @@ Claude Code can directly control web browsers and interpret screenshots:
 - **Browser Control**: Playwright MCP server for direct browser automation
 - **AI Assistant**: Claude Code with full browser control capabilities
 - **Development Stack**: Python 3.12, Node.js 22
-- **Pre-configured Agents**: Specialized Claude agents that work behind the scenes
+- **Pre-configured Agents**: Specialized Claude agents for testing and evaluation
+- **Skills**: Social/SEO implementation with Playwright-powered social card generation
 
 ## Using with VS Code Dev Containers
 
