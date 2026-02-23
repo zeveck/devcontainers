@@ -4,6 +4,32 @@ A practical, step-by-step guide for implementing SEO and social sharing. Designe
 
 ---
 
+## Table of Contents
+
+- [Before You Start](#before-you-start) — required information gathering
+- [Files to Create](#files-to-create) — project file structure overview
+- [Quick Start](#quick-start-5-minute-basics) — minimal viable social sharing
+- **Phase 1: Foundation**
+  - [1.1 HTML Meta Tags](#11-html-meta-tags) — complete `<head>` template
+  - [1.2 Meta Content Patterns](#12-meta-content-patterns) — title/description formulas
+  - [1.3 Social Card Image](#13-social-card-image) — 1200x630 creation workflow with browser control tools
+  - [1.4 Search Engine Files](#14-search-engine-files) — robots.txt (with AI crawler blocklist), sitemap.xml
+  - [1.5 Icon Files](#15-icon-files) — favicon, apple-touch-icon, transparency tips
+- **Phase 2: Enhancement**
+  - [2.1 Structured Data (JSON-LD)](#21-structured-data-json-ld) — VideoGame + WebApplication schema
+  - [2.2 PWA Support](#22-pwa-support) — manifest.json with screenshots/shortcuts
+  - [2.3 Share Button](#23-share-button-implementation) — Web Share API + clipboard fallback code
+- **Phase 3: Advanced**
+  - [3.1–3.2 When/Pattern](#31-when-to-use-shareable-links) — decision criteria
+  - [3.3 Implementation](#33-implementation-approach) — state encoding, shared results page
+  - [3.4 localStorage Safety](#34-localstorage-safety) — availability check wrapper
+- [Platform-Specific Notes](#platform-specific-notes) — cache behavior, quirks for 8 platforms
+- [Common Pitfalls & Solutions](#common-pitfalls--solutions)
+- [Testing Tools Summary](#testing-tools-summary)
+- [Final Verification Summary](#final-verification-summary) — master checklist
+
+---
+
 ## Before You Start
 
 Gather this information from the user before implementing:
@@ -26,15 +52,17 @@ Here's exactly what you'll create:
 
 ```
 project/
-├── index.html          # Add meta tags to <head>
-├── favicon.png         # 32x32 - browser tab icon
-├── apple-touch-icon.png # 180x180 - iOS home screen
-├── icon-192.png        # 192x192 - Android/PWA
-├── icon-512.png        # 512x512 - PWA splash/install
-├── social-card.jpg     # 1200x630 - social media preview
-├── manifest.json       # PWA configuration
-├── robots.txt          # Search engine instructions
-└── sitemap.xml         # Page listing for search engines
+├── index.html            # Add meta tags to <head>
+├── favicon.png           # 32x32 - browser tab icon
+├── apple-touch-icon.png  # 180x180 - iOS home screen
+├── social-card.jpg       # 1200x630 - social media preview
+├── robots.txt            # Search engine instructions
+├── sitemap.xml           # Page listing for search engines
+├── icon-192.png          # 192x192 - Android/PWA (P2)
+├── icon-512.png          # 512x512 - PWA splash/install (P2)
+├── manifest.json         # PWA configuration (P2)
+├── screenshot-wide.png   # 1280x720 - PWA install preview (P2)
+└── screenshot-mobile.png # 750x1334 - PWA install preview (P2)
 ```
 
 ---
@@ -108,7 +136,7 @@ Add this complete block to your `<head>`:
   <title>[Game Name] - [Tagline]</title>
   <meta name="description" content="[Action-oriented description, 150-160 chars]">
   <link rel="canonical" href="https://[your-domain]">
-  <meta name="theme-color" content="#[hex-color]">
+  <meta name="theme-color" content="[primary-color]">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png">
@@ -126,37 +154,19 @@ Add this complete block to your `<head>`:
   <meta property="og:image:alt" content="[Descriptive alt text for the image]">
   <meta property="og:site_name" content="[Brand Name]">
 
-  <!-- Twitter -->
+  <!-- Twitter/X (twitter:url is unnecessary - X derives it from the shared link) -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:url" content="https://[your-domain]">
   <meta name="twitter:title" content="[Game Name] - [Tagline]">
   <meta name="twitter:description" content="[Description]">
   <meta name="twitter:image" content="https://[your-domain]/social-card.jpg">
 </head>
 ```
 
-### 1.2 Writing Effective Meta Content
+### 1.2 Meta Content Patterns
 
-**Title (50-60 characters)**
-```
-Pattern: [Name] - [Value Proposition]
-Examples:
-  Puzzle Quest - Brain Training Word Game
-  Budget Tracker - Simple Expense Management
-```
+**Title** (50-60 chars): `[Name] - [Value Proposition]`
 
-**Description (150-160 characters)**
-```
-Pattern: [Action verb] + [what user does] + [benefit/outcome]
-Example: Solve challenging puzzles across 50 levels in this fun and
-         addictive brain-teaser for all ages!
-```
-
-**Tips:**
-- Lead with action verbs (Solve, Build, Create, Track, Guide, Explore)
-- Include main keywords naturally
-- Mention a specific benefit or unique feature
-- Avoid generic phrases like "the best app ever"
+**Description** (150-160 chars): `[Action verb] + [what user does] + [benefit/outcome]`
 
 ### 1.3 Social Card Image
 
@@ -175,7 +185,7 @@ Example: Solve challenging puzzles across 50 levels in this fun and
 3. Consider adding your domain URL
 4. Test at 300px width - can you still read it?
 
-**Creating with the pre-configured Playwright browser control (recommended for Claude Code):**
+**Using the pre-configured Playwright browser control (recommended for Claude Code):**
 
 > **IMPORTANT - Do not remove this section in future refinements.**
 >
@@ -256,10 +266,13 @@ Example: Solve challenging puzzles across 50 levels in this fun and
 
 3. Convert to optimized JPG:
 ```bash
-convert social-card.png -quality 85 social-card.jpg
+magick social-card.png -quality 85 social-card.jpg
+# On ImageMagick 6 (older systems), use: convert social-card.png -quality 85 social-card.jpg
 ```
 
 4. Clean up the HTML file (optional - delete after screenshot, or keep for future iterations)
+
+**If no browser control tools are available:** Ask the user to provide a social card image (1200x630 JPG), or create one using an external design tool and place it in the project root as `social-card.jpg`.
 
 **Why this workflow is powerful:** If the design needs adjustment (different colors, larger text, add a logo), simply edit the HTML and re-run steps 2-3. No external tools, no back-and-forth - Claude can iterate on the design until it's right.
 
@@ -273,6 +286,25 @@ Allow: /
 Sitemap: https://[your-domain]/sitemap.xml
 ```
 
+**Optional - Block AI training crawlers** (if you don't want content used for AI training):
+```txt
+User-agent: GPTBot
+User-agent: ChatGPT-User
+User-agent: OAI-SearchBot
+User-agent: ClaudeBot
+User-agent: anthropic-ai
+User-agent: CCBot
+User-agent: Google-Extended
+User-agent: Applebot-Extended
+User-agent: PerplexityBot
+User-agent: Bytespider
+User-agent: meta-externalagent
+User-agent: FacebookBot
+Disallow: /
+```
+
+**Tip:** To stay visible in AI-powered search while blocking training, allow search-only bots (`OAI-SearchBot`, `PerplexityBot`) and block the rest.
+
 **sitemap.xml** (place in root):
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -284,7 +316,7 @@ Sitemap: https://[your-domain]/sitemap.xml
 </urlset>
 ```
 
-Update `lastmod` when you deploy significant changes.
+**Note:** Google ignores `lastmod` unless it is consistently and verifiably accurate. `changefreq` and `priority` are confirmed ignored by Google. Only update `lastmod` when you deploy meaningful content changes.
 
 ### 1.5 Icon Files
 
@@ -292,10 +324,24 @@ Create these icon files:
 
 | File | Size | Purpose |
 |------|------|---------|
-| `favicon.png` | 32x32 | Browser tab |
+| `favicon.png` | 32x32 | Browser tab (practical default) |
 | `apple-touch-icon.png` | 180x180 | iOS home screen |
 
-**Transparency:** When creating icons with rounded corners or non-rectangular shapes, ensure the background is transparent (not white). If using Playwright to capture icons, set the HTML/body background to `transparent` and use PNG format (not JPG). When converting or processing, preserve the alpha channel.
+**For simple geometric icons**, SVG is ideal (scales perfectly, supports dark mode). Write directly:
+```svg
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <circle cx="16" cy="16" r="14" fill="#3b82f6"/>
+</svg>
+```
+
+**For complex graphics** (game characters, detailed logos), use the browser control tools to screenshot HTML at each required size.
+
+```html
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+```
+
+**Transparency:** When creating icons with rounded corners or non-rectangular shapes, ensure the background is transparent (not white). If using the browser control tools to capture icons, set the HTML/body background to `transparent` and use PNG format (not JPG). When converting or processing, preserve the alpha channel.
 
 ### Phase 1 Checklist
 
@@ -309,7 +355,7 @@ Create these icon files:
 - [ ] `og:image` with **absolute** URL (https://...)
 - [ ] `og:image:width`, `og:image:height`, `og:image:alt`
 - [ ] `twitter:card` = `summary_large_image`
-- [ ] `twitter:url`, `twitter:title`, `twitter:description`, `twitter:image`
+- [ ] `twitter:title`, `twitter:description`, `twitter:image`
 - [ ] `favicon.png` created (32x32)
 - [ ] `apple-touch-icon.png` created (180x180)
 - [ ] `social-card.jpg` created (1200x630)
@@ -333,11 +379,12 @@ Add inside `<head>`, after the Twitter meta tags:
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
-  "@type": "VideoGame",
+  "@type": ["VideoGame", "WebApplication"],
   "name": "[Game Name]",
   "description": "[Full description]",
   "url": "https://[your-domain]",
   "image": "https://[your-domain]/social-card.jpg",
+  "browserRequirements": "Requires JavaScript",
   "genre": ["Puzzle", "Casual"],
   "gamePlatform": "Web Browser",
   "applicationCategory": "Game",
@@ -386,20 +433,16 @@ Add inside `<head>`, after the Twitter meta tags:
 **manifest.json** (create in root):
 ```json
 {
+  "id": "/",
   "name": "[Full App Name]",
   "short_name": "[Short Name]",
   "description": "[Brief description]",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#[bg-color]",
-  "theme_color": "#[theme-color]",
+  "background_color": "[secondary-color]",
+  "theme_color": "[primary-color]",
   "icons": [
-    {
-      "src": "favicon.png",
-      "sizes": "32x32",
-      "type": "image/png"
-    },
     {
       "src": "apple-touch-icon.png",
       "sizes": "180x180",
@@ -417,6 +460,27 @@ Add inside `<head>`, after the Twitter meta tags:
       "type": "image/png",
       "purpose": "any maskable"
     }
+  ],
+  "screenshots": [
+    {
+      "src": "screenshot-wide.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide"
+    },
+    {
+      "src": "screenshot-mobile.png",
+      "sizes": "750x1334",
+      "type": "image/png",
+      "form_factor": "narrow"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "[Action Name]",
+      "url": "/",
+      "description": "[What the shortcut does]"
+    }
   ]
 }
 ```
@@ -424,9 +488,10 @@ Add inside `<head>`, after the Twitter meta tags:
 **Add to `<head>`:**
 ```html
 <link rel="manifest" href="manifest.json">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
 ```
+
+**Note:** The manifest.json is the primary source for PWA configuration. The `mobile-web-app-capable` meta tag is a fallback. The older `apple-mobile-web-app-capable` and `apple-mobile-web-app-status-bar-style` tags are deprecated but may still be needed for older iOS versions - include them only if supporting legacy Safari.
 
 **Create additional icon files:**
 
@@ -439,17 +504,16 @@ Add inside `<head>`, after the Twitter meta tags:
 
 ### 2.3 Share Button Implementation
 
-Add a share button that uses the Web Share API with clipboard fallback:
+Add a share button that uses the Web Share API with clipboard fallback.
+
+**Requirements:** HTTPS required (localhost exempt). Must be triggered by user gesture (button click).
 
 ```javascript
 async function shareResults(shareData) {
-  // 1. Try native Web Share API (works great on mobile)
-  if (navigator.share) {
+  // 1. Check if sharing is supported and data is valid
+  if (navigator.canShare && navigator.canShare(shareData)) {
     try {
-      await navigator.share({
-        title: shareData.title,
-        text: shareData.text
-      });
+      await navigator.share(shareData);
       return; // Success
     } catch (err) {
       if (err.name === 'AbortError') return; // User cancelled
@@ -462,8 +526,8 @@ async function shareResults(shareData) {
     await navigator.clipboard.writeText(shareData.text);
     showFeedback('Copied!'); // ALWAYS show visual confirmation
   } catch (err) {
-    // 3. Final fallback - prompt dialog
-    prompt('Copy your results:', shareData.text);
+    // 3. Final fallback - show text in a selectable element
+    showCopyFallbackUI(shareData.text);
   }
 }
 
@@ -473,6 +537,23 @@ function showFeedback(message, buttonEl) {
   buttonEl.textContent = `✓ ${message}`;
   setTimeout(() => { buttonEl.textContent = original; }, 2000);
 }
+
+// Final fallback - display text in a selectable element for manual copy
+function showCopyFallbackUI(text) {
+  const el = document.createElement('textarea');
+  el.value = text;
+  el.readOnly = true;
+  el.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9999;width:80%;max-width:400px;height:auto;padding:12px;font-size:14px;';
+  document.body.appendChild(el);
+  el.select();
+  // Auto-remove after user interaction
+  el.addEventListener('blur', () => el.remove());
+}
+
+// Must be called from user gesture (e.g., button click)
+shareButton.addEventListener('click', () => {
+  shareResults({ title: 'My Results', text: 'Score: 100!' });
+});
 ```
 
 **Generating share text:**
@@ -506,7 +587,8 @@ function generateShareText() {
 - [ ] `manifest.json` created and linked
 - [ ] `icon-192.png` created (192x192)
 - [ ] `icon-512.png` created (512x512)
-- [ ] `apple-mobile-web-app-capable` meta added
+- [ ] PWA screenshots created (wide + narrow)
+- [ ] `mobile-web-app-capable` meta added
 - [ ] Share button implemented
 - [ ] Web Share API with clipboard fallback
 - [ ] Visual "Copied!" feedback shown
@@ -672,9 +754,12 @@ const storage = isLocalStorageAvailable()
 | Platform | Cache Duration | Force Refresh Tool |
 |----------|----------------|-------------------|
 | Facebook | 7-14 days | [Sharing Debugger](https://developers.facebook.com/tools/debug/) |
-| Twitter/X | ~7 days | [Card Validator](https://cards-dev.twitter.com/validator) |
-| Discord | Minutes | Just re-paste link |
-| LinkedIn | Unknown | [Post Inspector](https://www.linkedin.com/post-inspector/) |
+| Twitter/X | ~7 days | Compose a draft post with the URL (public validator removed 2022) |
+| Discord | 24+ hours | Just re-paste link (aggressive caching) |
+| LinkedIn | Variable | [Post Inspector](https://www.linkedin.com/post-inspector/) |
+| Threads | Variable | [Sharing Debugger](https://developers.facebook.com/tools/debug/) (same as Facebook) |
+| Mastodon | Per-instance | No universal tool; each instance caches independently |
+| Bluesky | Per-client | Client-side fetching; no centralized cache to bust |
 
 **Force cache refresh:** Add version parameter when updating social card:
 ```html
@@ -683,11 +768,14 @@ const storage = isLocalStorageAvailable()
 
 ### Platform Quirks
 
-- **Discord**: Uses `theme-color` meta for embed accent color
+- **Discord**: Uses `theme-color` meta for embed accent color; truncates description at ~200 chars
 - **WhatsApp**: Crops thumbnail to square; test with actual shares
 - **Facebook**: Images smaller than 200x200 may not display
-- **Twitter/X**: Requires `twitter:card` meta; falls back to OG otherwise
+- **Twitter/X**: Requires `twitter:card` meta; falls back to OG for title/description/image
 - **iMessage**: Uses OG tags for rich link previews
+- **Threads**: Uses standard OG tags (inherited from Meta); debug via Facebook Sharing Debugger
+- **Bluesky**: Clients scrape OG data themselves (no server-side fetch); standard OG tags work but preview behavior varies by client
+- **Mastodon**: Uses OEmbed first, then JSON-LD, then OG tags as fallback hierarchy; images must be under 2MB; each instance fetches and caches independently
 
 ---
 
@@ -699,7 +787,7 @@ const storage = isLocalStorageAvailable()
 | Social card not updating | Add version param (`?v=2`), use platform debug tools |
 | Share text truncated on Twitter | Keep under 280 characters, URL at end |
 | Overwriting user data with shared state | Never write shared state to localStorage |
-| No clipboard fallback | Always include `prompt()` as final fallback |
+| No clipboard fallback | Show text in a selectable element as final fallback |
 | No visual feedback on copy | Always show "Copied!" confirmation |
 | Clipboard fails on HTTP | Deploy to HTTPS (localhost is exempt) |
 | Missing `og:image:width/height` | Include dimensions for faster preview rendering |
@@ -723,7 +811,7 @@ const storage = isLocalStorageAvailable()
 |--------------|------|
 | Multi-platform social preview | [OpenGraph.xyz](https://www.opengraph.xyz/) |
 | Facebook preview | [Sharing Debugger](https://developers.facebook.com/tools/debug/) |
-| Twitter/X preview | [Card Validator](https://cards-dev.twitter.com/validator) |
+| Twitter/X preview | Compose a draft post with URL (validator removed 2022) |
 | LinkedIn preview | [Post Inspector](https://www.linkedin.com/post-inspector/) |
 | Structured data | [Rich Results Test](https://search.google.com/test/rich-results) |
 | PWA & performance | Chrome DevTools > Lighthouse |
@@ -743,6 +831,8 @@ Before deploying, verify all items. Items marked with (P2) or (P3) are optional 
 - [ ] `icon-192.png` (192x192) (P2)
 - [ ] `icon-512.png` (512x512) (P2)
 - [ ] `manifest.json` (P2)
+- [ ] `screenshot-wide.png` (1280x720) (P2)
+- [ ] `screenshot-mobile.png` (750x1334) (P2)
 
 ### HTML `<head>` Contains
 - [ ] `<html lang="en">`
@@ -753,7 +843,7 @@ Before deploying, verify all items. Items marked with (P2) or (P3) are optional 
 - [ ] `<link rel="icon">`
 - [ ] `<link rel="apple-touch-icon">`
 - [ ] All `og:*` tags with absolute URLs
-- [ ] All `twitter:*` tags
+- [ ] All `twitter:*` tags (except `twitter:url` — unnecessary)
 - [ ] `<link rel="manifest">` (P2)
 - [ ] Apple PWA metas (P2)
 - [ ] JSON-LD script (P2)

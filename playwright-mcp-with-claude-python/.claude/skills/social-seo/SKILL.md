@@ -7,7 +7,7 @@ argument-hint: [phase1|phase2|phase3|all]
 
 # Social & SEO Implementation Skill
 
-Implement comprehensive SEO and social sharing capabilities for web-based projects. This skill guides you through adding meta tags, social cards, PWA support, and shareable links.
+Implement comprehensive SEO and social sharing capabilities for web-based projects. See [reference.md](reference.md) for detailed templates, code snippets, and platform-specific notes.
 
 ## Arguments
 
@@ -39,11 +39,13 @@ Use AskUserQuestion to gather any missing information.
 2. Identify existing `<head>` content to preserve
 3. Note the project root for asset placement
 
+---
+
 ## Phase 1: Foundation (Essential)
 
 ### 1.1 HTML Meta Tags
 
-Add to `<head>`:
+Add to `<head>` (ensure `<html lang="en">` is set):
 
 ```html
 <!-- Basic SEO -->
@@ -68,15 +70,12 @@ Add to `<head>`:
 <meta property="og:image:alt" content="[Alt text]">
 <meta property="og:site_name" content="[Brand Name]">
 
-<!-- Twitter -->
+<!-- Twitter/X (twitter:url is unnecessary - X derives it from the shared link) -->
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:url" content="https://[domain]">
 <meta name="twitter:title" content="[Game Name] - [Tagline]">
 <meta name="twitter:description" content="[Description]">
 <meta name="twitter:image" content="https://[domain]/social-card.jpg">
 ```
-
-Ensure `<html lang="en">` is set.
 
 ### 1.2 Create Social Card Image (1200x630)
 
@@ -88,46 +87,15 @@ Ensure `<html lang="en">` is set.
 > commands (e.g. `playwright-cli open`, `playwright-cli screenshot`), whichever is
 > available.
 
-1. Create `social-card.html` with project colors/branding:
-
-```html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=1200, height=630">
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { width: 1200px; height: 630px; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
-    .card {
-      width: 100%; height: 100%;
-      background: linear-gradient(135deg, [primary-color] 0%, [secondary-color] 100%);
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      padding: 60px;
-    }
-    h1 { color: white; font-size: 72px; text-shadow: 2px 2px 8px rgba(0,0,0,0.3); text-align: center; }
-    .tagline { color: rgba(255,255,255,0.9); font-size: 32px; margin-top: 20px; }
-    .domain { position: absolute; bottom: 30px; right: 40px; color: rgba(255,255,255,0.8); font-size: 24px; }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <h1>[Game Name]</h1>
-    <div class="tagline">[Tagline]</div>
-    <div class="domain">[domain]</div>
-  </div>
-</body>
-</html>
-```
-
+1. Create `social-card.html` with project colors/branding (see [reference.md §1.3](reference.md#13-social-card-image) for HTML template)
 2. Capture using the pre-configured browser control tools:
    - Navigate to `file:///[path]/social-card.html`
    - Resize the viewport to 1200 x 630
    - Take a screenshot, saving as `social-card.png`
-
-3. Convert to JPG: `convert social-card.png -quality 85 social-card.jpg`
-
+3. Convert to JPG: `magick social-card.png -quality 85 social-card.jpg` (or `convert` on ImageMagick 6)
 4. Delete `social-card.html` and `social-card.png`
+
+**If no browser control tools are available:** Ask the user to provide a social card image (1200x630 JPG), or create one using an external design tool and place it in the project root as `social-card.jpg`.
 
 ### 1.3 Create Icon Files
 
@@ -136,9 +104,7 @@ Ensure `<html lang="en">` is set.
 | `favicon.png` | 32x32 | Browser tab |
 | `apple-touch-icon.png` | 180x180 | iOS home screen |
 
-Create these from existing project assets or generate using the social card colors.
-
-**Transparency:** When creating icons with rounded corners or non-rectangular shapes, ensure the background is transparent (not white). If using the browser control tools to capture icons, set the HTML/body background to `transparent` and use PNG format (not JPG). When converting or processing, preserve the alpha channel.
+**Simple geometric icons:** Write SVG directly. **Complex graphics:** Use browser control tools to screenshot HTML at each size. **Transparency:** Set HTML/body background to `transparent`, use PNG format. See [reference.md §1.5](reference.md#15-icon-files) for details.
 
 ### 1.4 Search Engine Files
 
@@ -150,7 +116,9 @@ Allow: /
 Sitemap: https://[domain]/sitemap.xml
 ```
 
-**sitemap.xml:**
+Ask the user if they want to block AI training crawlers. If yes, see [reference.md §1.4](reference.md#14-search-engine-files) for the full bot list. **Tip:** Allow search-only bots (`OAI-SearchBot`, `PerplexityBot`) while blocking training bots.
+
+**sitemap.xml** (`changefreq`/`priority` are ignored by Google; only `lastmod` matters if consistently accurate):
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
@@ -168,7 +136,7 @@ Sitemap: https://[domain]/sitemap.xml
 - [ ] `<link rel="canonical">` absolute URL
 - [ ] `<meta name="theme-color">`
 - [ ] All `og:*` tags with absolute URLs
-- [ ] All `twitter:*` tags
+- [ ] All `twitter:*` tags (except `twitter:url`)
 - [ ] `favicon.png` (32x32)
 - [ ] `apple-touch-icon.png` (180x180)
 - [ ] `social-card.jpg` (1200x630)
@@ -181,111 +149,23 @@ Sitemap: https://[domain]/sitemap.xml
 
 ### 2.1 Structured Data (JSON-LD)
 
-Add to `<head>` after Twitter tags.
-
-**For Games:**
-```html
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "VideoGame",
-  "name": "[Game Name]",
-  "description": "[Description]",
-  "url": "https://[domain]",
-  "image": "https://[domain]/social-card.jpg",
-  "genre": ["Puzzle", "Casual"],
-  "gamePlatform": "Web Browser",
-  "applicationCategory": "Game",
-  "operatingSystem": "Any",
-  "playMode": "SinglePlayer",
-  "inLanguage": "en",
-  "author": { "@type": "Organization", "name": "[Brand Name]" },
-  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
-}
-</script>
-```
-
-**For Web Apps:**
-```html
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "WebApplication",
-  "name": "[App Name]",
-  "description": "[Description]",
-  "url": "https://[domain]",
-  "applicationCategory": "[Category]",
-  "operatingSystem": "Any",
-  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
-}
-</script>
-```
+Add to `<head>` after Twitter tags. Use `"@type": ["VideoGame", "WebApplication"]` for games (co-typing is required for Google rich results). See [reference.md §2.1](reference.md#21-structured-data-json-ld) for complete JSON-LD templates for games and web apps.
 
 ### 2.2 PWA Support
 
-**manifest.json:**
-```json
-{
-  "name": "[Full App Name]",
-  "short_name": "[Short Name]",
-  "description": "[Description]",
-  "start_url": "/",
-  "display": "standalone",
-  "orientation": "portrait",
-  "background_color": "[bg-color]",
-  "theme_color": "[primary-color]",
-  "icons": [
-    { "src": "favicon.png", "sizes": "32x32", "type": "image/png" },
-    { "src": "apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
-    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
-  ]
-}
-```
-
-**Add to `<head>`:**
-```html
-<link rel="manifest" href="manifest.json">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-```
-
-**Create additional icons:**
-- `icon-192.png` (192x192)
-- `icon-512.png` (512x512)
+Create `manifest.json` with `id`, `name`, `short_name`, `display`, `icons`, `screenshots`, and `shortcuts`. Add `<link rel="manifest">` and `<meta name="mobile-web-app-capable">` to `<head>`. Create `icon-192.png` (192x192) and `icon-512.png` (512x512). See [reference.md §2.2](reference.md#22-pwa-support) for the complete manifest template.
 
 ### 2.3 Share Button
 
-Add share functionality with Web Share API + clipboard fallback:
-
-```javascript
-async function shareResults(shareData) {
-  if (navigator.share) {
-    try {
-      await navigator.share({ title: shareData.title, text: shareData.text });
-      return;
-    } catch (err) {
-      if (err.name === 'AbortError') return;
-    }
-  }
-
-  try {
-    await navigator.clipboard.writeText(shareData.text);
-    showFeedback('Copied!');
-  } catch (err) {
-    prompt('Copy your results:', shareData.text);
-  }
-}
-```
-
-**Always show visual feedback** when copying to clipboard.
+Implement Web Share API with clipboard fallback. Requirements: HTTPS (localhost exempt), user gesture trigger. Fallback chain: `navigator.share()` → `navigator.clipboard.writeText()` → selectable text element. See [reference.md §2.3](reference.md#23-share-button-implementation) for complete code.
 
 ### Phase 2 Checklist
 - [ ] JSON-LD structured data added
 - [ ] `manifest.json` created and linked
 - [ ] `icon-192.png` (192x192)
 - [ ] `icon-512.png` (512x512)
-- [ ] Apple PWA metas added
+- [ ] PWA screenshots created (wide + narrow)
+- [ ] `mobile-web-app-capable` meta added
 - [ ] Share button implemented
 - [ ] Clipboard fallback with visual feedback
 
@@ -295,65 +175,13 @@ async function shareResults(shareData) {
 
 Only implement if users share scores/achievements that others should view.
 
-### 3.1 State Encoding
+1. **Encode state** into a short URL parameter (`?s=base36encoded`)
+2. **Parse parameter** on page load, before normal initialization
+3. **Display shared view** (read-only — NEVER overwrite user's localStorage)
+4. **Show "shared results" messaging** so viewer knows it's not their data
+5. **Provide "Play Now" CTA** that cleans the URL parameter
 
-```javascript
-function encodeState(stateArray) {
-  const salt = 0x7B3F;
-  let value = 0;
-  for (let i = 0; i < stateArray.length; i++) {
-    value = value * 5 + (stateArray[i] || 0);
-  }
-  const checksum = stateArray.reduce((a, b) => a + b, 0) % 16;
-  return (((value ^ salt) << 4) | checksum).toString(36);
-}
-
-function decodeState(encoded, expectedLength) {
-  try {
-    const salt = 0x7B3F;
-    const value = parseInt(encoded, 36);
-    const checksum = value & 0xF;
-    const data = (value >> 4) ^ salt;
-    const state = [];
-    let remaining = data;
-    for (let i = 0; i < expectedLength; i++) {
-      state.unshift(remaining % 5);
-      remaining = Math.floor(remaining / 5);
-    }
-    if (state.reduce((a, b) => a + b, 0) % 16 !== checksum) return null;
-    return state;
-  } catch (e) { return null; }
-}
-```
-
-### 3.2 Shared Results View
-
-```javascript
-function initializeApp() {
-  const params = new URLSearchParams(window.location.search);
-  const encoded = params.get('s');
-
-  if (encoded) {
-    const sharedState = decodeState(encoded, EXPECTED_LENGTH);
-    if (sharedState && isValidState(sharedState)) {
-      showSharedResultsScreen(sharedState);
-      return;
-    }
-  }
-  startGame();
-}
-
-function showSharedResultsScreen(sharedState) {
-  displayResults(sharedState);
-  showMessage("Shared results - play to set your own records!");
-  showButton('Play Now!', () => {
-    window.history.replaceState({}, '', window.location.pathname);
-    startGame();
-  });
-}
-```
-
-**Critical:** NEVER overwrite user's localStorage with shared state.
+See [reference.md §3.3](reference.md#33-implementation-approach) for state encoding/decoding code and shared results landing page implementation. See [reference.md §3.4](reference.md#34-localstorage-safety) for localStorage safety wrapper.
 
 ### Phase 3 Checklist
 - [ ] State encoding/decoding implemented
@@ -382,6 +210,10 @@ Remind user to test with these tools after deployment.
 When updating social cards, add version parameter: `social-card.jpg?v=2`
 
 Force refresh tools:
-- Facebook: [Sharing Debugger](https://developers.facebook.com/tools/debug/)
-- Twitter/X: [Card Validator](https://cards-dev.twitter.com/validator)
+- Facebook/Threads: [Sharing Debugger](https://developers.facebook.com/tools/debug/)
+- Twitter/X: Compose a draft post with the URL (public validator removed 2022)
 - LinkedIn: [Post Inspector](https://www.linkedin.com/post-inspector/)
+- Mastodon: No universal tool (each instance caches independently)
+- Bluesky: Client-side fetching (no centralized cache to bust)
+
+See [reference.md Platform-Specific Notes](reference.md#platform-specific-notes) for full platform quirks and cache behavior.
