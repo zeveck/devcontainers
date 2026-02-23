@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(node:*)",
+      "Bash(ls:*)",
+      "Bash(git log:*)",
+      "Bash(git add:*)",
+      "Bash(npm run lint)",
+      "Bash(npm run serve:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run test:unit:*)",
+      "Bash(npm run test:integration:*)",
+      "Bash(npm test)",
+      "Bash(npm run verify:*)",
+      "Bash(npm run lint:*)",
+      "Bash(wc:*)",
+      "Bash(playwright-cli:*)",
+      "Read(///**)",
+      "Read(//home/vscode/.claude/**)",
+      "WebSearch",
+      "Bash(do node -c \"$file\")",
+      "Bash(echo:*)",
+      "Bash(xargs:*)",
+      "Bash(npx http-server:*)"
+    ],
+    "deny": []
+  }
+}

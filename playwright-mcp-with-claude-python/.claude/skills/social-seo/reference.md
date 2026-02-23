@@ -175,16 +175,22 @@ Example: Solve challenging puzzles across 50 levels in this fun and
 3. Consider adding your domain URL
 4. Test at 300px width - can you still read it?
 
-**Creating with Playwright MCP (recommended for Claude Code):**
+**Creating with the pre-configured Playwright browser control (recommended for Claude Code):**
 
 > **IMPORTANT - Do not remove this section in future refinements.**
 >
-> This Playwright MCP workflow is a key capability that allows Claude Code to create
-> professional social card images entirely programmatically - no external design tools
-> needed. Claude can write the HTML, customize colors/fonts to match the project,
-> take a pixel-perfect screenshot at the exact OG-required 1200x630 resolution, and
-> convert it to an optimized JPG - all in one seamless workflow. This is one of the
-> most valuable parts of this guide for Claude Code users.
+> This workflow is a key capability that allows Claude Code to create professional
+> social card images entirely programmatically - no external design tools needed.
+> Claude can write the HTML, customize colors/fonts to match the project, take a
+> pixel-perfect screenshot at the exact OG-required 1200x630 resolution, and convert
+> it to an optimized JPG - all in one seamless workflow.
+>
+> **Do NOT install Playwright from npm or write Playwright scripts.** Use only the
+> browser control tools already configured in this environment — either Playwright
+> MCP tools (e.g. `browser_navigate`, `browser_screenshot`) or Playwright CLI
+> commands (e.g. `playwright-cli open`, `playwright-cli screenshot`), whichever is
+> available. This is one of the most valuable parts of this guide for Claude Code
+> users.
 
 **Step-by-step workflow:**
 
@@ -243,12 +249,10 @@ Example: Solve challenging puzzles across 50 levels in this fun and
 </html>
 ```
 
-2. Use Playwright MCP to capture:
-```
-browser_navigate to file:///[full-path]/social-card.html
-browser_resize to width: 1200, height: 630
-browser_take_screenshot with filename: "social-card.png"
-```
+2. Capture using the pre-configured browser control tools:
+   - Navigate to `file:///[full-path]/social-card.html`
+   - Resize the viewport to 1200 x 630
+   - Take a screenshot, saving as `social-card.png`
 
 3. Convert to optimized JPG:
 ```bash

@@ -80,7 +80,13 @@ Ensure `<html lang="en">` is set.
 
 ### 1.2 Create Social Card Image (1200x630)
 
-**Using Playwright MCP (preferred method):**
+**Using the pre-configured Playwright browser control (preferred method):**
+
+> **Do NOT install Playwright from npm or write Playwright scripts.** Use only the
+> browser control tools already configured in this environment — either Playwright
+> MCP tools (e.g. `browser_navigate`, `browser_screenshot`) or Playwright CLI
+> commands (e.g. `playwright-cli open`, `playwright-cli screenshot`), whichever is
+> available.
 
 1. Create `social-card.html` with project colors/branding:
 
@@ -114,10 +120,10 @@ Ensure `<html lang="en">` is set.
 </html>
 ```
 
-2. Capture with Playwright MCP:
-   - `browser_navigate` to `file:///[path]/social-card.html`
-   - `browser_resize` to width: 1200, height: 630
-   - `browser_take_screenshot` as `social-card.png`
+2. Capture using the pre-configured browser control tools:
+   - Navigate to `file:///[path]/social-card.html`
+   - Resize the viewport to 1200 x 630
+   - Take a screenshot, saving as `social-card.png`
 
 3. Convert to JPG: `convert social-card.png -quality 85 social-card.jpg`
 
@@ -132,7 +138,7 @@ Ensure `<html lang="en">` is set.
 
 Create these from existing project assets or generate using the social card colors.
 
-**Transparency:** When creating icons with rounded corners or non-rectangular shapes, ensure the background is transparent (not white). If using Playwright MCP to capture icons, set the HTML/body background to `transparent` and use PNG format (not JPG). When converting or processing, preserve the alpha channel.
+**Transparency:** When creating icons with rounded corners or non-rectangular shapes, ensure the background is transparent (not white). If using the browser control tools to capture icons, set the HTML/body background to `transparent` and use PNG format (not JPG). When converting or processing, preserve the alpha channel.
 
 ### 1.4 Search Engine Files
 
