@@ -1,10 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Update npm to latest.
-echo "🔄 Updating npm..."
-npm install -g npm@11.7.0
-
 # Install Claude Code CLI (native installer).
 echo "🤖 Installing Claude Code..."
 curl -fsSL https://claude.ai/install.sh | bash
