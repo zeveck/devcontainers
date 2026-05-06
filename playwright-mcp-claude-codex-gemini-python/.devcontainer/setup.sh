@@ -6,6 +6,12 @@ echo "🤖 Installing Claude Code..."
 curl -fsSL https://claude.ai/install.sh | bash
 export PATH="$HOME/.local/bin:$PATH"
 
+# ── npm registry (optional) ──────────────────────────────────────────────────
+if [ -n "${NPM_REGISTRY:-}" ]; then
+  echo "Configuring npm registry: $NPM_REGISTRY"
+  npm config set registry "$NPM_REGISTRY"
+fi
+
 # Install GPT-5 Codex CLI.
 echo "🧠 Installing GPT5 Codex..."
 npm install -g @openai/codex@latest
@@ -14,11 +20,13 @@ npm install -g @openai/codex@latest
 echo "✨ Installing Gemini CLI..."
 npm install -g @google/gemini-cli@latest
 
-# Install PlayWright + Chrome.
+# Install Chromium with OS-level dependencies for Docker.
+# We use chromium (not chrome) because Chrome lacks native ARM Linux builds,
+# which breaks on Apple Silicon Macs running ARM containers.
 # Remove Yarn repo with expired GPG key (from base image) to avoid apt failures.
-echo "🎭 Installing Playwright core..."
+echo "🎭 Installing Chromium with OS dependencies..."
 sudo rm -f /etc/apt/sources.list.d/yarn.list 2>/dev/null || true
-PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npx -y playwright@latest install --with-deps chrome
+PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npx -y playwright@latest install --with-deps chromium
 
 # Remove all MCP servers.
 echo "🧹 Removing any old MCP entries..."
@@ -33,7 +41,6 @@ cat > .playwright-mcp.json <<JSON
     "browserName": "chromium",
     "isolated": true,
     "launchOptions": {
-      "channel": "chrome",
       "headless": true,
       "args": ["--no-sandbox"]
     }

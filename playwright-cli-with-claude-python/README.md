@@ -17,14 +17,14 @@ This container gives Claude Code **direct control of a web browser** through the
 
 ### Browser Control Stack
 - **Playwright CLI** (`@playwright/cli`) - Token-efficient browser automation commands
-- **Chrome Browser** - Pre-configured for headless operation
+- **Chromium Browser** - Pre-configured for headless operation (works on both x86_64 and ARM)
 
 ### AI Assistant with Browser Access
 - **Claude Code** - Anthropic's CLI with full browser control permissions
 
 ### Development Environment
 - **Python 3.12** - Full Python development environment
-- **Node.js 22** - JavaScript/TypeScript support
+- **Node.js 24** - JavaScript/TypeScript support
 - **VS Code Extensions** - Python and Pylint pre-configured
 
 ### Skills
@@ -87,7 +87,6 @@ The social-seo skill guides Claude through implementing Open Graph tags, Twitter
   "browser": {
     "browserName": "chromium",
     "launchOptions": {
-      "channel": "chrome",
       "headless": true,
       "args": ["--no-sandbox"]
     }
@@ -96,11 +95,11 @@ The social-seo skill guides Claude through implementing Open Graph tags, Twitter
 }
 ```
 
-The `--no-sandbox` flag is required because Chrome's OS-level sandbox needs `CAP_SYS_ADMIN`, which Docker containers don't have. The container itself provides isolation.
+The `--no-sandbox` flag is required because Chromium's OS-level sandbox needs `CAP_SYS_ADMIN`, which Docker containers don't have. The container itself provides isolation.
 
 ### Playwright CLI Setup
 During container setup, `setup.sh` does the following in order:
-1. Installs Chrome with OS-level dependencies (`npx playwright install --with-deps chrome`)
+1. Installs Chromium with OS-level dependencies (`npx playwright install --with-deps chromium`)
 2. Installs `@playwright/cli` globally
 3. Writes the config above to `.playwright/cli.config.json` (the default discovery path)
 4. Runs `playwright-cli install --skills` which initializes the workspace and copies the Playwright CLI skill to `.claude/skills/playwright-cli/`
@@ -135,6 +134,20 @@ Pre-configured to allow all `playwright-cli` commands via Bash while maintaining
 ## Available Skills
 
 - `/social-seo` - Implement SEO and social sharing (meta tags, Open Graph, PWA, social cards)
+
+## Corporate Networks / Custom npm Registry
+
+If your network blocks access to `registry.npmjs.org`, you can configure a custom npm registry by setting the `NPM_REGISTRY` environment variable in your `devcontainer.json`:
+
+```json
+{
+  "remoteEnv": {
+    "NPM_REGISTRY": "https://your-artifactory.example.com/api/npm/npm-repos/"
+  }
+}
+```
+
+The setup script will detect this variable and configure npm accordingly before installing any packages. If unset, npm uses the public registry as normal.
 
 ## Disclaimer
 

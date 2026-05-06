@@ -19,7 +19,7 @@ The container also includes commands and subagents to help guide Claude Code wit
 
 ### Browser Control Stack
 - **Playwright MCP Server** - Bridges Claude to browser control
-- **Chrome Browser** - Pre-configured for headless operation
+- **Chromium Browser** - Pre-configured for headless operation (works on both x86_64 and ARM)
 - **MCP Protocol** - Enables real-time AI-to-browser communication
 
 ### AI Assistant with Browser Access
@@ -27,7 +27,7 @@ The container also includes commands and subagents to help guide Claude Code wit
 
 ### Development Environment
 - **Python 3.12** - Full Python development environment
-- **Node.js 22** - JavaScript/TypeScript support
+- **Node.js 24** - JavaScript/TypeScript support
 - **VS Code Extensions** - Python and Pylint pre-configured
 
 ### Pre-configured Browser-Aware Agents
@@ -136,7 +136,6 @@ The social-seo skill guides Claude through implementing Open Graph tags, Twitter
     "browserName": "chromium",
     "isolated": true,
     "launchOptions": {
-      "channel": "chrome",
       "headless": true,
       "args": ["--no-sandbox"]
     }
@@ -180,6 +179,20 @@ Pre-configured to allow all browser control operations while maintaining securit
 
 ### Skills
 - `/social-seo` - Implement SEO and social sharing (meta tags, Open Graph, PWA, social cards)
+
+## Corporate Networks / Custom npm Registry
+
+If your network blocks access to `registry.npmjs.org`, you can configure a custom npm registry by setting the `NPM_REGISTRY` environment variable in your `devcontainer.json`:
+
+```json
+{
+  "remoteEnv": {
+    "NPM_REGISTRY": "https://your-artifactory.example.com/api/npm/npm-repos/"
+  }
+}
+```
+
+The setup script will detect this variable and configure npm accordingly before installing any packages. If unset, npm uses the public registry as normal.
 
 ## Disclaimer
 

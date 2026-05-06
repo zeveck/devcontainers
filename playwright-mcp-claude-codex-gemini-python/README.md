@@ -19,7 +19,7 @@ The container also includes commands and subagents to help guide Claude Code wit
 
 ### Browser Control Stack
 - **Playwright MCP Server** - Bridges AI assistants to browser control
-- **Chrome Browser** - Pre-configured for headless operation
+- **Chromium Browser** - Pre-configured for headless operation (works on both x86_64 and ARM)
 - **MCP Protocol** - Enables real-time AI-to-browser communication
 
 ### AI Assistants with Browser Access
@@ -29,7 +29,7 @@ The container also includes commands and subagents to help guide Claude Code wit
 
 ### Development Environment
 - **Python 3.12** - Available for development
-- **Node.js 22** - JavaScript/TypeScript support
+- **Node.js 24** - JavaScript/TypeScript support
 - **VS Code Extensions** - Python and Pylint pre-configured
 
 ### Pre-configured Browser-Aware Agents (Claude only)
@@ -198,7 +198,6 @@ All AI assistants can use these MCP commands:
     "browserName": "chromium",
     "isolated": true,
     "launchOptions": {
-      "channel": "chrome",
       "headless": true,
       "args": ["--no-sandbox"]
     }
@@ -234,7 +233,7 @@ All AI assistants can use these MCP commands:
 
 ### Browser Won't Start
 - Container has 2GB shared memory (`--shm-size=2g`)
-- Chrome runs with `--no-sandbox` for container compatibility
+- Chromium runs with `--no-sandbox` for container compatibility
 - Check Docker has sufficient resources
 
 ### MCP Connection Issues
@@ -310,6 +309,20 @@ This environment transforms multiple AI assistants into active web development p
 - **Provide redundancy** - Continue if one AI service is down
 
 Instead of just one AI assistant, you have a team of web-aware AI partners, each able to browse, interact with, and analyze web content in their own way.
+
+## Corporate Networks / Custom npm Registry
+
+If your network blocks access to `registry.npmjs.org`, you can configure a custom npm registry by setting the `NPM_REGISTRY` environment variable in your `devcontainer.json`:
+
+```json
+{
+  "remoteEnv": {
+    "NPM_REGISTRY": "https://your-artifactory.example.com/api/npm/npm-repos/"
+  }
+}
+```
+
+The setup script will detect this variable and configure npm accordingly before installing any packages. If unset, npm uses the public registry as normal.
 
 ## Disclaimer
 
