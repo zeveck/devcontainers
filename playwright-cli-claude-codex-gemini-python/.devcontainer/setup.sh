@@ -58,13 +58,26 @@ cat > .playwright/cli.config.json <<JSON
 }
 JSON
 
-# Initialize workspace and install skills.
-# This will:
-#   - Detect the existing .playwright/ directory and our config
-#   - Verify Chromium is installed (it is, from the step above)
-#   - Copy skill files to .claude/skills/playwright-cli/
+# Initialize the workspace and install skills into .claude/skills/playwright-cli/.
+# NOTE: as of @playwright/cli 0.1.14 (2026-06-10) `install` NO LONGER downloads the
+# browser binary — that moved to the `install-browser` subcommand below. Older CLIs
+# bundled it here, which is why pinning @latest silently broke once 0.1.14 shipped.
 echo "📝 Initializing Playwright CLI workspace and installing skills..."
 playwright-cli install --skills
+
+# Download the Chromium binary the CLI needs (required on @playwright/cli >= 0.1.14).
+# `install-browser` fetches the exact revision the CLI's bundled playwright-core wants,
+# and is idempotent (a no-op when already present). We use chromium (not chrome)
+# because it has native ARM Linux builds, so this works on Apple Silicon containers too.
+echo "🌐 Installing the Chromium binary for Playwright CLI..."
+playwright-cli install-browser chromium
+
+# Self-check: fail the build LOUDLY if the browser can't actually launch, so any
+# future upstream change to the install flow surfaces here (set -e aborts on the
+# non-zero exit) instead of silently breaking tests/screenshots at runtime.
+echo "🔎 Verifying Chromium launches..."
+playwright-cli open about:blank >/dev/null
+playwright-cli close >/dev/null
 
 # Done.
 echo "✅ Setup complete."
