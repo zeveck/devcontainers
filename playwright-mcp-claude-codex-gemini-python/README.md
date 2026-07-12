@@ -30,6 +30,7 @@ The container also includes commands and subagents to help guide Claude Code wit
 ### Development Environment
 - **Python 3.12** - Available for development
 - **Node.js 24** - JavaScript/TypeScript support
+- **GitHub CLI** - `gh` for repos, PRs, and issues
 - **VS Code Extensions** - Python and Pylint pre-configured
 
 ### Pre-configured Browser-Aware Agents (Claude only)

@@ -27,6 +27,7 @@ This container gives multiple AI assistants **direct control of a web browser** 
 ### Development Environment
 - **Python 3.12** - Available for development
 - **Node.js 24** - JavaScript/TypeScript support
+- **GitHub CLI** - `gh` for repos, PRs, and issues
 - **VS Code Extensions** - Python and Pylint pre-configured
 
 ### Skills (Claude only)

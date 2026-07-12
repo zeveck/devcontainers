@@ -3,7 +3,8 @@
   "image": "mcr.microsoft.com/devcontainers/python:3.12",
   "runArgs": ["--shm-size=2g"],
   "features": {
-    "ghcr.io/devcontainers/features/node:1": { "version": "24", "pnpmVersion": "none" }
+    "ghcr.io/devcontainers/features/node:1": { "version": "24", "pnpmVersion": "none" },
+    "ghcr.io/devcontainers/features/github-cli:1": {}
   },
   "postCreateCommand": "bash .devcontainer/setup.sh",
   "customizations": {

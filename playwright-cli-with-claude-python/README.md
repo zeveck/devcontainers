@@ -25,6 +25,7 @@ This container gives Claude Code **direct control of a web browser** through the
 ### Development Environment
 - **Python 3.12** - Full Python development environment
 - **Node.js 24** - JavaScript/TypeScript support
+- **GitHub CLI** - `gh` for repos, PRs, and issues
 - **VS Code Extensions** - Python and Pylint pre-configured
 
 ### Skills

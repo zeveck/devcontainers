@@ -11,7 +11,7 @@ Multiple AI assistants can directly control web browsers and interpret screensho
 
 - **Browser Control**: Playwright MCP server provides direct browser automation
 - **AI Assistants**: Claude Code, Codex CLI, and Gemini CLI with browser access
-- **Development Stack**: Python 3.12, Node.js 24
+- **Development Stack**: Python 3.12, Node.js 24, GitHub CLI
 - **Pre-configured Agents**: Specialized Claude agents for testing and evaluation
 - **Skills**: Social/SEO implementation with Playwright-powered social card generation
 
@@ -20,7 +20,7 @@ Claude Code can directly control web browsers and interpret screenshots:
 
 - **Browser Control**: Playwright MCP server for direct browser automation
 - **AI Assistant**: Claude Code with full browser control capabilities
-- **Development Stack**: Python 3.12, Node.js 24
+- **Development Stack**: Python 3.12, Node.js 24, GitHub CLI
 - **Pre-configured Agents**: Specialized Claude agents for testing and evaluation
 - **Skills**: Social/SEO implementation with Playwright-powered social card generation
 
@@ -29,7 +29,7 @@ Multiple AI assistants can directly control web browsers via token-efficient CLI
 
 - **Browser Control**: Playwright CLI (`@playwright/cli`) for token-efficient browser automation
 - **AI Assistants**: Claude Code, Codex CLI, and Gemini CLI with browser access
-- **Development Stack**: Python 3.12, Node.js 24
+- **Development Stack**: Python 3.12, Node.js 24, GitHub CLI
 - **Skills**: Playwright CLI skill + Social/SEO implementation with Playwright-powered social card generation
 
 ### `playwright-cli-with-claude-python`
@@ -37,7 +37,7 @@ Claude Code can directly control web browsers via token-efficient CLI commands:
 
 - **Browser Control**: Playwright CLI (`@playwright/cli`) for token-efficient browser automation
 - **AI Assistant**: Claude Code with full browser control capabilities
-- **Development Stack**: Python 3.12, Node.js 24
+- **Development Stack**: Python 3.12, Node.js 24, GitHub CLI
 - **Skills**: Playwright CLI skill + Social/SEO implementation with Playwright-powered social card generation
 
 ## Using with VS Code Dev Containers
