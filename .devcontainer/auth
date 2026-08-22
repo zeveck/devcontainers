@@ -11,16 +11,19 @@
 #   auth --glab     GitLab only
 #   auth --both     both
 #   auth --force    re-authenticate even if already signed in
+#   auth --logout   sign out instead (local only; does not revoke the token,
+#                   so other containers using it are unaffected)
 set -euo pipefail
 
-GH=0; GLAB=0; FORCE=0; GH_HOST=github.com; GLAB_HOST=gitlab.com
+GH=0; GLAB=0; FORCE=0; LOGOUT=0; GH_HOST=github.com; GLAB_HOST=gitlab.com
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --gh)    GH=1 ;;
     --glab)  GLAB=1 ;;
     --both)  GH=1; GLAB=1 ;;
-    --force) FORCE=1 ;;
+    --force)  FORCE=1 ;;
+    --logout) LOGOUT=1 ;;
     --gh-host)   GH_HOST="${2:?--gh-host needs a hostname}"; shift ;;
     --glab-host) GLAB_HOST="${2:?--glab-host needs a hostname}"; shift ;;
     -h|--help) awk 'NR>1 && /^#/ {sub(/^# ?/,""); print; next} NR>1 {exit}' "$0"; exit 0 ;;
@@ -70,6 +73,29 @@ persist_tip() {
   echo "  Note: nothing mounts credentials, so a container rebuild loses this."
   echo "  Re-run \`auth\` after a rebuild."
 }
+
+# Sign out. Both CLIs only clear local state -- gh documents that it "does not
+# invalidate authentication tokens" -- so this cannot disturb another container
+# sharing the same token.
+if [ "$LOGOUT" -eq 1 ]; then
+  if [ "$GH" -eq 1 ]; then
+    # `gh auth status` exits 0 whenever a token is STORED, valid or not, which is
+    # exactly the right question here (unlike for the sign-in check above).
+    if gh auth status --hostname "$GH_HOST" >/dev/null 2>&1; then
+      gh auth logout --hostname "$GH_HOST" >/dev/null 2>&1 || true
+      echo "signed out of $GH_HOST (token not revoked; other containers keep working)"
+    else
+      echo "not signed in to $GH_HOST"
+    fi
+  fi
+  if [ "$GLAB" -eq 1 ]; then
+    # glab auth logout exits 0 even with nothing stored, so do not claim a
+    # sign-out happened -- just state what was done.
+    glab auth logout --hostname "$GLAB_HOST" >/dev/null 2>&1 || true
+    echo "cleared any stored credentials for $GLAB_HOST (token not revoked)"
+  fi
+  exit 0
+fi
 
 if [ "$GH" -eq 1 ]; then
   echo "── GitHub ──────────────────────────────────────────────────"

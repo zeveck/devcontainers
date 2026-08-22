@@ -232,7 +232,10 @@ auth --gh
 auth --glab
 auth --both
 auth --force    # replace an existing login
+auth --logout   # sign out
 ```
+
+`--logout` clears credentials locally only. `gh` documents that it "does not invalidate authentication tokens", and `glab` only clears its config file and keyring — so signing out in one container leaves every other container working.
 
 It links you to the right token page with the required scopes, takes the pasted token without echoing it, and signs the CLI in.
 
