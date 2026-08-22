@@ -103,6 +103,10 @@ jobs:
           & "$dir\f.ps1"
           if ($LASTEXITCODE -ne 42) { throw "expected 42, got $LASTEXITCODE" }
           Write-Host "exit code propagated: $LASTEXITCODE"
+          # The 42 we just asserted is still in $LASTEXITCODE, and GitHub's pwsh
+          # wrapper exits with whatever it holds. Same trap as the step above.
+          $global:LASTEXITCODE = 0
+          exit 0
 
       - name: Install / uninstall round-trip
         run: |
