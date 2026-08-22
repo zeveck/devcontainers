@@ -59,7 +59,7 @@ Install `dc` itself from the project folder. This is once per machine, not per p
 ./.devcontainer/dc install      # macOS and Linux
 ```
 
-That puts a copy of `dc` on your PATH, so it works from anywhere and keeps working even if you delete the project it came from. Open a fresh terminal on Windows, then:
+That puts a copy of `dc` on your PATH, so it works from anywhere and keeps working even if you delete the project it came from. On Windows, open a fresh terminal first — the PATH change doesn't reach terminals that are already open. Then:
 
 ```bash
 dc up          # first build takes a few minutes
