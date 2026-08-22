@@ -62,6 +62,42 @@ Two paths it generates in your workspace are worth adding to your project's `.gi
 
 (Scoped rather than ignoring `.claude/` wholesale, so you can still commit your own project config — `settings.json`, custom agents, project skills.)
 
+## Using It Without VS Code (`dc`)
+
+`.devcontainer/dc` is a small wrapper around [`@devcontainers/cli`](https://github.com/devcontainers/cli) that drives the same container from your terminal — no VS Code, no "Reopen in Container".
+
+**Requires** Docker, Node 18+, and ideally `npm i -g @devcontainers/cli` (without it, `dc` falls back to `npx`, which works but is slower on every call).
+
+### Install
+
+```bash
+.devcontainer/dc install          # macOS / Linux
+.devcontainer\dc.cmd install      # Windows (CMD or PowerShell)
+```
+
+That copies `dc` to `~/.local/share/dc` and puts a shim on your PATH (`~/.local/bin` on macOS/Linux, `%LOCALAPPDATA%\Programs\dc` on Windows, where it also registers the PATH entry — open a new terminal afterwards). The installed copy is **project-agnostic**: it finds the nearest `.devcontainer/devcontainer.json` by walking up from wherever you are, so it works in any project, not just this one.
+
+- `dc install <name>` installs under a different name. Worth knowing: `dc` is also the POSIX desk calculator, present by default on macOS and many Linux distros, and installing to `~/.local/bin` will shadow it.
+- `dc install --link` points the shim at this repo instead of copying, so edits take effect immediately.
+- `dc uninstall` removes it.
+
+### Commands
+
+```
+dc up [--rebuild] [--no-cache]   create/start the container
+dc build                         build the image
+dc shell                         interactive shell inside it
+dc exec <cmd> [args...]          run a command inside it
+dc claude|codex|gemini|pw [...]  run an agent inside it
+dc down / dc rm                  stop / stop and remove
+dc status / dc logs [--follow]   inspect
+dc doctor                        check prerequisites
+```
+
+Everything that runs inside the container goes through a **login** shell. That is not cosmetic: `claude` resolves via `~/.profile` and `codex`, `gemini`, and `playwright-cli` via `/etc/profile.d`, none of which a bare `devcontainer exec` sources — without it they are "command not found".
+
+`dc down`, `rm`, `status`, and `logs` go through `docker` filtered on the `devcontainer.local_folder` label, because the devcontainer CLI itself has no teardown or listing commands.
+
 ## What's Included
 
 ### Browser Control Stack

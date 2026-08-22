@@ -1,0 +1,60 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    # Windows is the point of this matrix: dc.cmd and the PATH-registration path
+    # cannot be exercised on Linux, so they are only ever covered here.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+
+      - name: Unit tests
+        run: node --test
+
+      - name: Shim runs (bash)
+        if: runner.os != 'Windows'
+        run: |
+          ./.devcontainer/dc version
+          ./.devcontainer/dc help > /dev/null
+
+      - name: Shim runs (cmd)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          .\.devcontainer\dc.cmd version
+          .\.devcontainer\dc.cmd help > NUL
+
+      - name: Shim runs (powershell, via PATHEXT)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:PATH = "$PWD\.devcontainer;$env:PATH"
+          # Bare `dc` must resolve to dc.cmd through PATHEXT — the assumption the
+          # single-Windows-file design rests on.
+          if ((Get-Command dc).Source -notlike '*dc.cmd') { throw "resolved to $((Get-Command dc).Source)" }
+          dc version
+
+      - name: Argument fidelity through the shim
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # cmd.exe re-parses the command line, so these are the cases most likely
+          # to break on Windows and nowhere else.
+          $out = & .\.devcontainer\dc.cmd exec --dry-run 'a b' 'a&b' 'C:\Users\x' 2>&1 | Out-String
+          Write-Host $out
+
+      - name: Install / uninstall round-trip
+        run: |
+          node ./.devcontainer/dc.mjs install dctest
+          node ./.devcontainer/dc.mjs uninstall dctest

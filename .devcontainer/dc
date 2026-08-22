@@ -1,0 +1,3 @@
+#!/bin/sh
+# Thin shim. All logic is in dc.mjs — see `dc help`.
+exec node "$(cd "$(dirname "$0")" && pwd)/dc.mjs" "$@"
