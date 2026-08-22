@@ -50,7 +50,7 @@ npm i -g @devcontainers/cli
 
 That one is technically optional. Without it `dc` downloads the same tool on the fly, which works but adds a few seconds to every command.
 
-Install `dc` itself from the project folder:
+Install `dc` itself from the project folder. This is once per machine, not per project — skip it if you've done it before, or rerun it to pick up a newer version:
 
 ```powershell
 .\.devcontainer\dc install     # Windows
