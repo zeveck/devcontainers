@@ -45,14 +45,30 @@ jobs:
           if ((Get-Command dc).Source -notlike '*dc.cmd') { throw "resolved to $((Get-Command dc).Source)" }
           dc version
 
-      - name: Argument fidelity through the shim
+      - name: Argument fidelity through the cmd shim
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          # cmd.exe re-parses the command line, so these are the cases most likely
-          # to break on Windows and nowhere else.
-          $out = & .\.devcontainer\dc.cmd exec --dry-run 'a b' 'a&b' 'C:\Users\x' 2>&1 | Out-String
-          Write-Host $out
+          # cmd.exe re-parses the command line before node sees it -- the one layer
+          # that cannot be tested from Linux. Exercise it with a standalone shim of
+          # the same shape, so this checks argument passing rather than dc's Docker
+          # preflight (these runners have no usable Linux-container support).
+          $dir = Join-Path $env:RUNNER_TEMP 'shimtest'
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          'console.log(JSON.stringify(process.argv.slice(2)))' | Set-Content "$dir\args.mjs"
+          '@node "%~dp0args.mjs" %*' | Set-Content "$dir\shim.cmd"
+
+          $got  = (& "$dir\shim.cmd" 'a b' 'a&b' 'C:\Users\x' '--flag').Trim()
+          $want = '["a b","a&b","C:\\Users\\x","--flag"]'
+          Write-Host "got:  $got"
+          Write-Host "want: $want"
+          if ($got -ne $want) { throw "cmd.exe mangled arguments through the shim" }
+
+          # Informational: embedded quotes are the known-fragile case through cmd.
+          # Recorded rather than asserted -- if this ever comes back wrong, that is
+          # the signal to add a dc.ps1 alongside dc.cmd.
+          $q = (& "$dir\shim.cmd" 'say "hi"' '').Trim()
+          Write-Host "embedded quotes / empty arg: $q"
 
       - name: Install / uninstall round-trip
         run: |
