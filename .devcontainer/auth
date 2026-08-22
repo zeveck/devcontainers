@@ -73,7 +73,10 @@ persist_tip() {
 
 if [ "$GH" -eq 1 ]; then
   echo "── GitHub ──────────────────────────────────────────────────"
-  if [ "$FORCE" -eq 0 ] && gh auth status --hostname "$GH_HOST" >/dev/null 2>&1; then
+  # `gh auth status` exits 0 even when it reports the stored token as invalid,
+  # so it cannot distinguish "signed in" from "holding a revoked token" -- and a
+  # revoked token is the main reason to run this. Make a real API call instead.
+  if [ "$FORCE" -eq 0 ] && GH_HOST="$GH_HOST" gh api user >/dev/null 2>&1; then
     echo "already authenticated to $GH_HOST (use --force to replace)"
   else
     echo "Create a token:"
@@ -95,7 +98,7 @@ fi
 
 if [ "$GLAB" -eq 1 ]; then
   echo "── GitLab ──────────────────────────────────────────────────"
-  if [ "$FORCE" -eq 0 ] && glab auth status --hostname "$GLAB_HOST" 2>&1 | grep -q "✓ .*Token"; then
+  if [ "$FORCE" -eq 0 ] && GITLAB_HOST="$GLAB_HOST" glab api user >/dev/null 2>&1; then
     echo "already authenticated to $GLAB_HOST (use --force to replace)"
   else
     echo "Create a token:"
