@@ -8,7 +8,7 @@ It all runs locally, on your own hardware. The difference is that the agents and
 
 - [What's inside](#whats-inside)
 - [Getting started](#getting-started)
-- [Using it on your own projects](#using-it-on-your-own-projects)
+- [What ends up in your project](#what-ends-up-in-your-project)
 - [The `dc` command](#the-dc-command)
 - [Signing in to GitHub and GitLab](#signing-in-to-github-and-gitlab)
 - [Letting an agent use a browser](#letting-an-agent-use-a-browser)
@@ -29,7 +29,7 @@ There are two ways in, and they give you the same container. Use VS Code if you 
 Either way you need two things:
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/), and it has to actually be running.
-- A project with the `.devcontainer` folder in it. To try things out, [download this repo as a ZIP](https://github.com/zeveck/devcontainers/archive/refs/heads/main.zip) and unpack it somewhere. For real work, [copy the folder into your own project](#using-it-on-your-own-projects).
+- The `.devcontainer` folder in your project. [Download this repo as a ZIP](https://github.com/zeveck/devcontainers/archive/refs/heads/main.zip), unpack it, and copy the `.devcontainer` folder into your project folder.
 
 ### With VS Code
 
@@ -72,15 +72,7 @@ There's more `dc` can do, listed under [the `dc` command](#the-dc-command).
 
 Each agent asks you to sign in the first time you run it. Follow the prompts.
 
-## Using it on your own projects
-
-The only thing you need is the `.devcontainer` folder. Copy it into any project:
-
-```bash
-cp -r /path/to/devcontainers/.devcontainer /path/to/your-project/
-```
-
-Then open that project in VS Code and reopen in container, or run `dc up` from its folder. Either way everything else installs itself.
+## What ends up in your project
 
 Building the container adds two folders to your project as it goes: `.playwright/`, holding the browser's config and any screenshots it takes, and `.claude/skills/playwright-cli/`, the skill Claude uses to drive the browser. Both are written fresh on every build. Claude adds `.claude/settings.local.json` as well, once you start approving permissions.
 
