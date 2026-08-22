@@ -65,15 +65,15 @@ From here you'd normally copy the setup into a project of your own, which is the
 
 ## Using it on your own projects
 
-The container is one folder. Copy it wherever you want it:
+The only thing you need is the `.devcontainer` folder. Copy it into any project:
 
 ```bash
 cp -r /path/to/devcontainers/.devcontainer /path/to/your-project/
 ```
 
-Open that project in VS Code, reopen in container, and you're set. Everything installs itself.
+Open that project in VS Code, reopen in container, and you're set. Everything else installs itself.
 
-It leaves a couple of working folders behind in your project. Add them to your `.gitignore`:
+Building the container adds two folders to your project as it goes: `.playwright/`, holding the browser's config and any screenshots it takes, and `.claude/skills/playwright-cli/`, the skill Claude uses to drive the browser. Both are written fresh on every build. Claude adds `.claude/settings.local.json` as well, once you start approving permissions. None of it is worth committing, so add them to your `.gitignore`:
 
 ```gitignore
 .playwright/
