@@ -9,7 +9,7 @@ It all runs locally, on your own hardware. The difference is that the agents and
 - [What's inside](#whats-inside)
 - [Getting started](#getting-started)
 - [Using it on your own projects](#using-it-on-your-own-projects)
-- [Skipping VS Code with `dc`](#skipping-vs-code-with-dc)
+- [The `dc` command](#the-dc-command)
 - [Signing in to GitHub and GitLab](#signing-in-to-github-and-gitlab)
 - [Letting an agent use a browser](#letting-an-agent-use-a-browser)
 - [Changing how it's set up](#changing-how-its-set-up)
@@ -24,18 +24,44 @@ It all runs locally, on your own hardware. The difference is that the agents and
 
 ## Getting started
 
-Install [Docker Desktop](https://www.docker.com/products/docker-desktop/), [VS Code](https://code.visualstudio.com/), and the [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers). Check that Docker is actually running.
+There are two ways in, and they give you the same container. Use VS Code if you want an editor attached to it, or `dc` if you live in a terminal.
 
-Then:
+Either way you need [Docker Desktop](https://www.docker.com/products/docker-desktop/), and it has to actually be running.
+
+### With VS Code
+
+You'll also want [VS Code](https://code.visualstudio.com/) and its [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers).
 
 1. Clone this repo and open the folder in VS Code.
 2. VS Code will offer to "Reopen in Container". Click it. (If it doesn't ask, open the Command Palette and choose *Dev Containers: Reopen in Container*.)
 3. Go make coffee. The first build takes a few minutes.
 4. Open a terminal in VS Code and type `claude`, or `codex`, or `gemini`.
 
+### Without VS Code
+
+You'll also want [Node.js](https://nodejs.org/) 18 or newer. Clone the repo, then from its folder:
+
+```powershell
+.\.devcontainer\dc install     # Windows
+```
+```bash
+./.devcontainer/dc install      # macOS and Linux
+```
+
+Open a fresh terminal on Windows, then:
+
+```bash
+dc up          # first build takes a few minutes
+dc claude      # or dc codex, dc gemini
+```
+
+There's more `dc` can do, listed under [the `dc` command](#the-dc-command).
+
+### Either way
+
 Each agent asks you to sign in the first time you run it. Follow the prompts.
 
-That's the whole thing. From here you'd normally copy the setup into a project of your own, which is the next section.
+From here you'd normally copy the setup into a project of your own, which is the next section.
 
 ## Using it on your own projects
 
@@ -55,22 +81,11 @@ It leaves a couple of working folders behind in your project. Add them to your `
 .claude/settings.local.json
 ```
 
-## Skipping VS Code with `dc`
+## The `dc` command
 
-If you'd rather stay in a terminal, `dc` runs the same container without VS Code involved. You'll need Docker and Node 18 or newer. Installing the dev containers CLI as well (`npm i -g @devcontainers/cli`) is optional but makes every command noticeably faster.
+`dc` drives the container from a terminal, with no VS Code involved. Installing it is covered [above](#without-vs-code). Installing the dev containers CLI as well (`npm i -g @devcontainers/cli`) is optional but makes every command noticeably faster.
 
-To install, run this from the project folder:
-
-```powershell
-.\.devcontainer\dc install     # Windows
-```
-```bash
-./.devcontainer/dc install      # macOS and Linux
-```
-
-On Windows, open a fresh terminal afterwards or it won't find the command yet.
-
-After that you can type `dc` anywhere. It picks up whichever project you're currently sitting in.
+Once installed you can type `dc` anywhere. It picks up whichever project you're currently sitting in.
 
 ```
 dc up          create and start the container   (--rebuild to start over)
