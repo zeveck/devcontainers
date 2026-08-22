@@ -4,6 +4,18 @@ A development container that's ready to work in, with Claude Code, Codex CLI, an
 
 Nothing gets installed on your own machine, and the agents only see the project you opened.
 
+## Contents
+
+- [Why you'd want this](#why-youd-want-this)
+- [What's inside](#whats-inside)
+- [Getting started](#getting-started)
+- [Using it on your own projects](#using-it-on-your-own-projects)
+- [Skipping VS Code with `dc`](#skipping-vs-code-with-dc)
+- [Signing in to GitHub and GitLab](#signing-in-to-github-and-gitlab)
+- [Letting an agent use a browser](#letting-an-agent-use-a-browser)
+- [Changing how it's set up](#changing-how-its-set-up)
+- [Add-ons](#add-ons)
+
 ## Why you'd want this
 
 The main reason is that you can let an agent off the leash. It runs inside the container, where it can reach your project and the internet but not the rest of your computer. If you've been reluctant to let one work unsupervised, this is a reasonable place to try.
@@ -53,6 +65,39 @@ It leaves a couple of working folders behind in your project. Add them to your `
 .claude/settings.local.json
 ```
 
+## Skipping VS Code with `dc`
+
+If you'd rather stay in a terminal, `dc` runs the same container without VS Code involved. You'll need Docker and Node 18 or newer. Installing the dev containers CLI as well (`npm i -g @devcontainers/cli`) is optional but makes every command noticeably faster.
+
+To install, run this from the project folder:
+
+```powershell
+.\.devcontainer\dc install     # Windows
+```
+```bash
+./.devcontainer/dc install      # macOS and Linux
+```
+
+On Windows, open a fresh terminal afterwards or it won't find the command yet.
+
+After that you can type `dc` anywhere. It picks up whichever project you're currently sitting in.
+
+```
+dc up          create and start the container   (--rebuild to start over)
+dc build       rebuild the image                (--no-cache to ignore the cache)
+dc shell       open a shell inside it
+dc claude      run Claude inside it             (also codex, gemini, pw)
+dc exec ...    run any command inside it
+dc down        stop it                          (dc rm deletes it too)
+dc status      show this project's container
+dc logs        show its output                  (--follow to keep watching)
+dc doctor      check your setup
+```
+
+When something won't start, run `dc doctor` first. It checks Docker, Node, and your project, and tells you which one is the problem.
+
+One thing to watch for on macOS and Linux: they already ship a small calculator program called `dc`, and this will hide it. If you use it, install under a different name with `dc install <name>`. To remove everything, run `dc uninstall`.
+
 ## Signing in to GitHub and GitLab
 
 Run `auth` and it will walk you through it:
@@ -99,39 +144,6 @@ The browser's settings live in `.playwright/cli.config.json`:
 `--no-sandbox` is necessary inside Docker. Chromium is used rather than Chrome because Chrome has no ARM build, so it would fail on Apple Silicon Macs.
 
 Careful with that file: it gets rewritten every time the container is created, so edits disappear. Change it in `setup.sh` instead. Same goes for `.claude/skills/playwright-cli/`.
-
-## Skipping VS Code with `dc`
-
-If you'd rather stay in a terminal, `dc` runs the same container without VS Code involved. You'll need Docker and Node 18 or newer. Installing the dev containers CLI as well (`npm i -g @devcontainers/cli`) is optional but makes every command noticeably faster.
-
-To install, run this from the project folder:
-
-```powershell
-.\.devcontainer\dc install     # Windows
-```
-```bash
-./.devcontainer/dc install      # macOS and Linux
-```
-
-On Windows, open a fresh terminal afterwards or it won't find the command yet.
-
-After that you can type `dc` anywhere. It picks up whichever project you're currently sitting in.
-
-```
-dc up          create and start the container   (--rebuild to start over)
-dc build       rebuild the image                (--no-cache to ignore the cache)
-dc shell       open a shell inside it
-dc claude      run Claude inside it             (also codex, gemini, pw)
-dc exec ...    run any command inside it
-dc down        stop it                          (dc rm deletes it too)
-dc status      show this project's container
-dc logs        show its output                  (--follow to keep watching)
-dc doctor      check your setup
-```
-
-When something won't start, run `dc doctor` first. It checks Docker, Node, and your project, and tells you which one is the problem.
-
-One thing to watch for on macOS and Linux: they already ship a small calculator program called `dc`, and this will hide it. If you use it, install under a different name with `dc install <name>`. To remove everything, run `dc uninstall`.
 
 ## Changing how it's set up
 
