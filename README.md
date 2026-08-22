@@ -29,7 +29,7 @@ There are two ways in, and they give you the same container. Use VS Code if you 
 Either way you need two things:
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/), and it has to actually be running.
-- A project with the `.devcontainer` folder in it. The simplest start is cloning this repo, which is exactly that; [copying the folder into your own project](#using-it-on-your-own-projects) works the same way.
+- A project with the `.devcontainer` folder in it. To try things out, [download this repo as a ZIP](https://github.com/zeveck/devcontainers/archive/refs/heads/main.zip) and unpack it somewhere. For real work, [copy the folder into your own project](#using-it-on-your-own-projects).
 
 ### With VS Code
 
