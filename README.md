@@ -1,23 +1,28 @@
-# AI Browser Control Dev Container
+# Dev Container for AI Coding Agents
 
-AI assistants can write your front-end code, but they can't normally see whether it works. This container gives them a browser.
+A development container that's ready to work in, with Claude Code, Codex CLI, and Gemini CLI already installed and set up. Open a project, start an agent, get on with it.
 
-Ask Claude to check your signup form and it will open the page, type into the fields, click the button, and take a screenshot it can read. If the layout breaks at the third step, it can tell you so.
+Nothing gets installed on your own machine, and the agents only see the project you opened.
 
-Everything runs inside Docker, so none of it gets installed on your computer.
+## Why you'd want this
+
+The main reason is that you can let an agent off the leash. It runs inside the container, where it can reach your project and the internet but not the rest of your computer. If you've been reluctant to let one work unsupervised, this is a reasonable place to try.
+
+The second reason is that you stop setting things up. Copy one folder into a project and you get the same tools every time, on every machine, instead of installing a CLI here and forgetting it there.
+
+Having all three agents together turns out to be useful too. Ask the same question in three terminals when you want a second opinion, or when one of them is down. And because a browser is installed, an agent can open the page it just changed and actually look at it rather than guessing.
 
 ## What's inside
 
 - Claude Code, Codex CLI, and Gemini CLI
-- Chromium, which they control through the Playwright CLI
-- Python 3.12, Node.js 24, and the GitHub and GitLab command-line tools
-- `dc`, an optional command for people who'd rather not use VS Code
-
-A note on what this is for: it's built for working on your app, not for running a test suite. The assistant uses your site the way a person would and reports back.
+- Python 3.12 and Node.js 24
+- `gh` and `glab` for GitHub and GitLab, with a helper that signs you in
+- Chromium, which agents drive through the Playwright CLI
+- `dc`, an optional command for running all this without VS Code
 
 ## Getting started
 
-Install [Docker Desktop](https://www.docker.com/products/docker-desktop/), [VS Code](https://code.visualstudio.com/), and the [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers). Make sure Docker is actually running.
+Install [Docker Desktop](https://www.docker.com/products/docker-desktop/), [VS Code](https://code.visualstudio.com/), and the [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers). Check that Docker is actually running.
 
 Then:
 
@@ -26,17 +31,27 @@ Then:
 3. Go make coffee. The first build takes a few minutes.
 4. Open a terminal in VS Code and type `claude`, or `codex`, or `gemini`.
 
-Each assistant asks you to sign in the first time you run it. Follow the prompts.
+Each agent asks you to sign in the first time you run it. Follow the prompts.
 
-### Your first screenshot
+That's the whole thing. From here you'd normally copy the setup into a project of your own, which is the next section.
 
-Start Claude and paste this in:
+## Using it on your own projects
 
-> Create an HTML file called hello.html with a colorful heading saying 'Hello Playwright!', then use playwright-cli to take a screenshot of it.
+The container is one folder. Copy it wherever you want it:
 
-You'll get the file, and a screenshot of it rendered in a real browser.
+```bash
+cp -r /path/to/devcontainers/.devcontainer /path/to/your-project/
+```
 
-Want a second opinion? Open another terminal and run a different assistant. They can all work at once.
+Open that project in VS Code, reopen in container, and you're set. Everything installs itself.
+
+It leaves a couple of working folders behind in your project. Add them to your `.gitignore`:
+
+```gitignore
+.playwright/
+.claude/skills/playwright-cli/
+.claude/settings.local.json
+```
 
 ## Signing in to GitHub and GitLab
 
@@ -53,29 +68,37 @@ auth --logout   # sign out
 
 It sends you to the right page to create an access token, then takes the token you paste back and signs you in.
 
-Two quirks are worth knowing about. The first is why `auth` uses a token instead of the normal browser sign-in: GitHub allows only one `gh auth login` per account, so signing in from a second container quietly logs you out of the first. If you work in several containers, they'll keep knocking each other offline. Access tokens don't work that way, and one token can be used everywhere at once.
+Two quirks are worth knowing about. The first is why `auth` uses a token instead of the normal browser sign-in: GitHub allows only one `gh auth login` per account, so signing in from a second container quietly logs you out of the first. If you work in several containers they'll keep knocking each other offline. Access tokens don't behave that way, and one token works everywhere at once.
 
 The second is that rebuilding a container signs you out again, since logins aren't stored outside it. Run `auth` and carry on.
 
-Signing out with `auth --logout` only affects the container you're in. The token itself stays valid, so anywhere else you've used it keeps working.
+Signing out with `auth --logout` only affects the container you're in. The token stays valid, so anywhere else you've used it keeps working.
 
-## Using it on your own projects
+## Letting an agent use a browser
 
-You don't have to work inside this repo. Copy one folder into any project:
+Chromium is installed, and Claude has a skill for driving it. You don't need to configure anything. Try starting Claude and pasting this in:
 
-```bash
-cp -r /path/to/devcontainers/.devcontainer /path/to/your-project/
+> Create an HTML file called hello.html with a colorful heading saying 'Hello Playwright!', then use playwright-cli to take a screenshot of it.
+
+You'll get the file, and a screenshot of it rendered in a real browser.
+
+It's more useful on real work: point an agent at your dev server and ask it to walk through signup, or to check whether a page still looks right on a phone-sized screen. Run `playwright-cli --help` for everything it can do.
+
+The browser's settings live in `.playwright/cli.config.json`:
+
+```json
+{
+  "browser": {
+    "browserName": "chromium",
+    "launchOptions": { "headless": true, "args": ["--no-sandbox"] }
+  },
+  "outputDir": ".playwright/output"
+}
 ```
 
-Open that project in VS Code, reopen in container, and you're set. Everything installs itself.
+`--no-sandbox` is necessary inside Docker. Chromium is used rather than Chrome because Chrome has no ARM build, so it would fail on Apple Silicon Macs.
 
-The container leaves a couple of working folders behind in your project. Add them to your `.gitignore`:
-
-```gitignore
-.playwright/
-.claude/skills/playwright-cli/
-.claude/settings.local.json
-```
+Careful with that file: it gets rewritten every time the container is created, so edits disappear. Change it in `setup.sh` instead. Same goes for `.claude/skills/playwright-cli/`.
 
 ## Skipping VS Code with `dc`
 
@@ -112,36 +135,16 @@ One thing to watch for on macOS and Linux: they already ship a small calculator 
 
 ## Changing how it's set up
 
-The whole configuration is five files in `.devcontainer/`:
+The whole configuration is a handful of files in `.devcontainer/`:
 
 - `devcontainer.json` sets the base image, VS Code extensions, and container options
-- `setup.sh` installs the assistants, the browser, and the command-line tools
+- `setup.sh` installs the agents, the browser, and the command-line tools
 - `auth` is the sign-in helper
 - `dc`, `dc.cmd`, `dc.ps1`, and `dc.mjs` make up the `dc` command
 
 To add or remove software, edit `setup.sh` and rebuild the container.
 
-The browser's own settings live in `.playwright/cli.config.json`:
-
-```json
-{
-  "browser": {
-    "browserName": "chromium",
-    "launchOptions": { "headless": true, "args": ["--no-sandbox"] }
-  },
-  "outputDir": ".playwright/output"
-}
-```
-
-`--no-sandbox` is necessary inside Docker. Chromium is used rather than Chrome because Chrome has no ARM build, so it would fail on Apple Silicon Macs.
-
-Careful with that file, though: it gets rewritten from scratch every time the container is created, so any edits disappear. Change it in `setup.sh` instead. Same goes for `.claude/skills/playwright-cli/`.
-
-For the full list of things the browser can do, run `playwright-cli --help`.
-
-## If your network blocks npmjs.org
-
-Set `NPM_REGISTRY` before you start the container and it will be used for every install:
+If your network blocks npmjs.org, set `NPM_REGISTRY` before starting the container and it will be used for every install:
 
 ```bash
 export NPM_REGISTRY=https://your-registry.example.com/api/npm/npm-repos/
@@ -152,8 +155,6 @@ You can also write it straight into `devcontainer.json`:
 ```json
 "containerEnv": { "NPM_REGISTRY": "https://your-registry.example.com/api/npm/npm-repos/" }
 ```
-
-Leave it alone and the public registry is used as usual.
 
 ## Add-ons
 
