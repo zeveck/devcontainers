@@ -222,24 +222,23 @@ This container deliberately ships no agent skills of its own beyond the `playwri
 
 - **[social-seo-skill](https://github.com/zeveck/social-seo-skill)** — SEO and social sharing for web apps: meta tags, Open Graph, Twitter cards, social card images (captured with Playwright), structured data, PWA support. Copy `SKILL.md` and `reference.md` into `.claude/skills/social-seo/` in your workspace.
 
-## Authenticating gh and glab across many containers
+## Authenticating gh and glab
 
-`gh auth login` uses the GitHub CLI's **OAuth app**, and GitHub issues one token per app per user. Every new login regenerates that token and invalidates every other copy — so authenticating `gh` in a second container silently logs you out of the first. If you run several containers, they will keep knocking each other out.
-
-A Personal Access Token has no such behaviour: it is independent, and any number of machines and containers can use the same one at once.
-
-Set it once on your host:
+Run `auth` inside the container:
 
 ```bash
-export GH_TOKEN=ghp_yourtoken          # macOS / Linux
-```
-```powershell
-[Environment]::SetEnvironmentVariable('GH_TOKEN','ghp_yourtoken','User')   # Windows
+auth            # picks GitHub or GitLab from this repo's git remote
+auth --gh
+auth --glab
+auth --both
+auth --force    # replace an existing login
 ```
 
-`devcontainer.json` forwards `GH_TOKEN` (and `GLAB_TOKEN`) from your host into the container, so `gh` is authenticated on every start with no `gh auth login`, in as many containers as you like — and it survives rebuilds, which a `gh auth login` does not. A classic PAT wants `repo`, `workflow`, `read:org`, and `gist` to match what `gh` normally requests.
+It links you to the right token page with the required scopes, takes the pasted token without echoing it, and signs the CLI in.
 
-If you leave the variables unset they resolve to empty, which both CLIs ignore, so `gh auth login` keeps working as before.
+It uses a Personal Access Token rather than `gh auth login`'s browser flow on purpose. GitHub issues one OAuth token per app per user, so every `gh auth login` **invalidates the token in every other container** — with several containers they keep logging each other out. PATs are independent, and any number can be live at once.
+
+Nothing mounts credentials, so a rebuild loses the login and you re-run `auth`.
 
 ## Corporate Networks / Custom npm Registry
 

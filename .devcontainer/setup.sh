@@ -44,6 +44,11 @@ if ! (
   echo "⚠️  glab install failed (network or upstream change) — continuing without it."
 fi
 
+# Put the auth helper on PATH so `auth` works from anywhere in the container.
+# Symlinked rather than copied so edits to the repo copy take effect immediately.
+echo "🔑 Installing auth helper..."
+sudo ln -sf "$(pwd)/.devcontainer/auth" /usr/local/bin/auth
+
 # Install Playwright CLI globally.
 echo "🔧 Installing Playwright CLI..."
 npm install -g @playwright/cli@latest
