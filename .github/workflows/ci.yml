@@ -84,6 +84,11 @@ jobs:
           #    cmd semantics for anyone invoking it directly.
           $cmd = (& "$dir\zz.cmd" @argv 2>&1 | Out-String).Trim()
           Write-Host "cmd (known-lossy on bare &): $cmd"
+          # That call fails by design (cmd tries to run the text after the &).
+          # GitHub's pwsh wrapper exits with whatever $LASTEXITCODE holds, so
+          # clear it or this informational line fails the whole step.
+          $global:LASTEXITCODE = 0
+          exit 0
 
       - name: Exit codes propagate through the ps1 shim
         if: runner.os == 'Windows'
