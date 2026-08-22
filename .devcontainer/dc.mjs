@@ -136,9 +136,8 @@ function requireRoot() {
   return root;
 }
 
-/** Containers this project owns, newest first. */
-function findContainers(root) {
-  const want = normalizeLocalFolder(root);
+/** Every container the devcontainer CLI has labelled, regardless of project. */
+function allDevcontainers() {
   const r = capture('docker', [
     'ps', '-a', '--filter', `label=${LABEL}`,
     '--format', `{{.ID}}\t{{.State}}\t{{.Label "${LABEL}"}}`,
@@ -146,8 +145,29 @@ function findContainers(root) {
   if (r.status !== 0) return [];
   return (r.stdout || '')
     .split('\n').filter(Boolean)
-    .map((line) => { const [id, state, folder] = line.split('\t'); return { id, state, folder }; })
-    .filter((c) => normalizeLocalFolder(c.folder) === want);
+    .map((line) => { const [id, state, folder] = line.split('\t'); return { id, state, folder }; });
+}
+
+/** Containers this project owns. */
+function findContainers(root) {
+  const want = normalizeLocalFolder(root);
+  return allDevcontainers().filter((c) => normalizeLocalFolder(c.folder) === want);
+}
+
+/**
+ * Explain a no-match. Distinguishes "you have no containers" from "your label
+ * looks different than expected", which is the likely failure on Docker Desktop's
+ * WSL2 backend where host paths can be rewritten.
+ */
+function reportNoMatch(root) {
+  const all = allDevcontainers();
+  console.log(`no container for ${root}`);
+  if (!all.length) return;
+  console.log(`\n  ${all.length} dev container(s) exist, but none match this path:`);
+  for (const c of all) console.log(`    ${c.id}  ${c.state}  ${c.folder}`);
+  console.log(`\n  looking for (normalized): ${normalizeLocalFolder(root)}`);
+  console.log('  If one of the above is this project, the label format is unhandled --');
+  console.log('  please report it.');
 }
 
 // ── install / uninstall ─────────────────────────────────────────────────────
@@ -314,7 +334,7 @@ function main(argv) {
     }
     case 'down': case 'rm': {
       const cs = findContainers(root);
-      if (!cs.length) { console.log('no container for this project'); return 0; }
+      if (!cs.length) { reportNoMatch(root); return 0; }
       for (const c of cs) {
         run('docker', cmd === 'rm' ? ['rm', '-f', c.id] : ['stop', c.id]);
       }
@@ -322,13 +342,13 @@ function main(argv) {
     }
     case 'status': {
       const cs = findContainers(root);
-      if (!cs.length) { console.log(`no container for ${root}`); return 0; }
+      if (!cs.length) { reportNoMatch(root); return 0; }
       for (const c of cs) console.log(`${c.id}  ${c.state}  ${c.folder}`);
       return 0;
     }
     case 'logs': {
       const [c] = findContainers(root);
-      if (!c) { console.log('no container for this project'); return 1; }
+      if (!c) { reportNoMatch(root); return 1; }
       return run('docker', ['logs', ...(flags.has('--follow') ? ['-f'] : []), c.id]).status ?? 1;
     }
     default:
