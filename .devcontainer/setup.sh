@@ -12,19 +12,13 @@ if [ -n "${NPM_REGISTRY:-}" ]; then
   npm config set registry "$NPM_REGISTRY"
 fi
 
-# Install Chromium with OS-level dependencies for Docker.
-# playwright-cli install handles browser binaries but NOT OS deps (libgbm, libnss3, etc).
-# We use chromium (not chrome) because Chrome lacks native ARM Linux builds,
-# which breaks on Apple Silicon Macs running ARM containers.
-# Remove Yarn repo with expired GPG key (from base image) to avoid apt failures.
-echo "🎭 Installing Chromium with OS dependencies..."
-sudo rm -f /etc/apt/sources.list.d/yarn.list 2>/dev/null || true
-PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npx -y playwright@latest install --with-deps chromium
+# Install GPT-5 Codex CLI.
+echo "🧠 Installing GPT-5 Codex..."
+npm install -g @openai/codex@latest
 
-# Clean up any stale MCP config from previous setups.
-echo "🧹 Cleaning up stale configs..."
-rm -f .mcp.json
-rm -f .playwright-mcp.json
+# Install Gemini CLI.
+echo "✨ Installing Gemini CLI..."
+npm install -g @google/gemini-cli@latest
 
 # Install Playwright CLI globally.
 echo "🔧 Installing Playwright CLI..."
@@ -51,18 +45,28 @@ cat > .playwright/cli.config.json <<JSON
 JSON
 
 # Initialize the workspace and install skills into .claude/skills/playwright-cli/.
-# NOTE: as of @playwright/cli 0.1.14 (2026-06-10) `install` NO LONGER downloads the
-# browser binary — that moved to the `install-browser` subcommand below. Older CLIs
-# bundled it here, which is why pinning @latest silently broke once 0.1.14 shipped.
+# Browser download is handled explicitly by `install-browser` below, not relied on here
+# (whether `install` also fetches one has varied across releases, and we pin @latest).
 echo "📝 Initializing Playwright CLI workspace and installing skills..."
 playwright-cli install --skills
 
-# Download the Chromium binary the CLI needs (required on @playwright/cli >= 0.1.14).
-# `install-browser` fetches the exact revision the CLI's bundled playwright-core wants,
-# and is idempotent (a no-op when already present). We use chromium (not chrome)
-# because it has native ARM Linux builds, so this works on Apple Silicon containers too.
-echo "🌐 Installing the Chromium binary for Playwright CLI..."
-playwright-cli install-browser chromium
+# Install the browser AND its OS-level dependencies in one step.
+# `install-browser` fetches the exact revision the CLI's bundled playwright-core pins
+# (currently chromium-1224) plus the headless shell and ffmpeg (needed for video
+# recording), and is idempotent. `--with-deps` adds the OS packages Docker lacks
+# (libgbm, libnss3, etc) via apt.
+#
+# Do NOT add a separate `npx playwright install --with-deps chromium` here: stable
+# playwright pins a DIFFERENT revision (1234), so it downloads ~656 MB of browsers
+# that are never launched. PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 does not prevent this —
+# that variable is only read by the npm-postinstall path, not the explicit `install`.
+#
+# We use chromium (not chrome) because it has native ARM Linux builds, so this works
+# on Apple Silicon containers too.
+# Remove Yarn repo with expired GPG key (from base image) to avoid apt failures.
+echo "🌐 Installing Chromium and OS dependencies for Playwright CLI..."
+sudo rm -f /etc/apt/sources.list.d/yarn.list 2>/dev/null || true
+playwright-cli install-browser chromium --with-deps
 
 # Self-check: fail the build LOUDLY if the browser can't actually launch, so any
 # future upstream change to the install flow surfaces here (set -e aborts on the

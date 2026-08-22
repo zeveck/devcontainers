@@ -1,77 +1,190 @@
-# Visual Studio Code + Docker Development Containers
+# Multi-AI Browser Control Dev Container
 
-This is a repository of pre-configured Visual Studio Code development environments for containerized agentic coding. They require you have Visual Studio Code with the Dev Containers extension and Docker Desktop installed and running.
+A pre-configured Visual Studio Code development environment for containerized agentic coding, giving Claude, Codex, and Gemini **direct control of a web browser** through the Playwright CLI.
 
-Clone the repo, open the desired folder in VSC, "Reopen in container", and once it's set up you auth the agent and start coding with playwright able to test workflows, etc.
+Clone the repo, open it in VS Code, "Reopen in Container", and once it's set up you auth the agent and start coding — with Playwright able to test workflows, verify features render as intended, and take screenshots your agent can actually interpret.
 
-## Available Environments
+**The whole payload is the `.devcontainer/` folder.** Everything else in this repo is documentation and housekeeping — so you can also just copy that one folder into a project of your own. See [Using It in Your Own Project](#using-it-in-your-own-project).
 
-### `playwright-mcp-claude-codex-gemini-python`
-Multiple AI assistants can directly control web browsers and interpret screenshots:
+## The Core Concept
 
-- **Browser Control**: Playwright MCP server provides direct browser automation
-- **AI Assistants**: Claude Code, Codex CLI, and Gemini CLI with browser access
-- **Development Stack**: Python 3.12, Node.js 24, GitHub CLI
-- **Pre-configured Agents**: Specialized Claude agents for testing and evaluation
-- **Skills**: Social/SEO implementation with Playwright-powered social card generation
+**This is NOT about automated testing.** This environment gives AI assistants a browser to control during development. Your AIs become web-aware development partners who can:
 
-### `playwright-mcp-with-claude-python`
-Claude Code can directly control web browsers and interpret screenshots:
+- Navigate to any URL and interact with live websites
+- Click buttons, fill forms, and navigate through applications
+- Take screenshots and analyze visual layouts
+- Debug your web apps by actually using them
+- Extract data from websites for processing
+- Test user flows in real-time
 
-- **Browser Control**: Playwright MCP server for direct browser automation
-- **AI Assistant**: Claude Code with full browser control capabilities
-- **Development Stack**: Python 3.12, Node.js 24, GitHub CLI
-- **Pre-configured Agents**: Specialized Claude agents for testing and evaluation
-- **Skills**: Social/SEO implementation with Playwright-powered social card generation
-
-### `playwright-cli-claude-codex-gemini-python`
-Multiple AI assistants can directly control web browsers via token-efficient CLI commands:
-
-- **Browser Control**: Playwright CLI (`@playwright/cli`) for token-efficient browser automation
-- **AI Assistants**: Claude Code, Codex CLI, and Gemini CLI with browser access
-- **Development Stack**: Python 3.12, Node.js 24, GitHub CLI
-- **Skills**: Playwright CLI skill + Social/SEO implementation with Playwright-powered social card generation
-
-### `playwright-cli-with-claude-python`
-Claude Code can directly control web browsers via token-efficient CLI commands:
-
-- **Browser Control**: Playwright CLI (`@playwright/cli`) for token-efficient browser automation
-- **AI Assistant**: Claude Code with full browser control capabilities
-- **Development Stack**: Python 3.12, Node.js 24, GitHub CLI
-- **Skills**: Playwright CLI skill + Social/SEO implementation with Playwright-powered social card generation
-
-## Using with VS Code Dev Containers
+## Getting Started
 
 ### Prerequisites
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
 - [VS Code](https://code.visualstudio.com/)
 - [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 
-### Getting Started
-1. Open VS Code
-2. Install the Dev Containers extension if not already installed
-3. Open the folder containing your desired environment (e.g., `playwright-mcp-claude-codex-gemini-python`)
-4. VS Code will detect the `.devcontainer` folder and prompt you to reopen in container
-5. Click "Reopen in Container" or use Command Palette → "Dev Containers: Reopen in Container"
-6. The container will automatically initialize itself, which may include installing agentic coding tools, MCP servers, browsers, and the like.
+### Open in Container
+1. Clone this repo and open the folder in VS Code
+2. VS Code detects the `.devcontainer` folder and prompts you to reopen in a container
+3. Click "Reopen in Container", or use Command Palette → "Dev Containers: Reopen in Container"
+4. Wait for automatic setup (~2-3 minutes the first time) — this installs the agentic coding tools, the Playwright CLI, and the Chromium browser
 
-The configuration for each container is in its `.devcontainer` folder, which you could edit to customize the setup as desired. It's recommended you inspect the files there to familiarize yourself with what'll be available.
+### Start an AI and prompt for browser control
+```bash
+# With Claude Code (recommended)
+claude
 
-## Environment Naming Convention
+# With Gemini CLI
+gemini
 
-Each environment name communicates exactly what's included:
+# With Codex CLI
+codex
+```
 
-- **`playwright`** - Browser automation framework (provides browser control)
-- **`mcp`** - Model Context Protocol (enables AI-to-browser communication)
-- **`cli`** - Playwright CLI (token-efficient alternative to MCP)
-- **`claude`** - Anthropic's Claude Code with browser access
-- **`codex`** - OpenAI's Codex CLI (if package exists)
-- **`gemini`** - Google's Gemini CLI
-- **`python`** - Python 3.12 runtime included
+## Using It in Your Own Project
+
+You don't need to work inside this repo. Copy the one folder into any project:
+
+```bash
+cp -r /path/to/devcontainers/.devcontainer /path/to/your-project/
+```
+
+Then open your project in VS Code and "Reopen in Container". `setup.sh` installs everything into the container at create time and writes what it needs into the workspace, so there's nothing else to copy and nothing to keep in sync.
+
+Two paths it generates in your workspace are worth adding to your project's `.gitignore`:
+
+```gitignore
+.playwright/
+.claude/skills/playwright-cli/
+.claude/settings.local.json
+```
+
+(Scoped rather than ignoring `.claude/` wholesale, so you can still commit your own project config — `settings.json`, custom agents, project skills.)
+
+## What's Included
+
+### Browser Control Stack
+- **Playwright CLI** (`@playwright/cli`) — token-efficient browser automation commands
+- **Chromium Browser** — pre-configured for headless operation (works on both x86_64 and ARM)
+
+### AI Assistants with Browser Access
+- **Claude Code** — Anthropic's CLI, with the `playwright-cli` skill preinstalled (it will ask permission the first time it drives the browser)
+- **Codex CLI** — OpenAI's Codex
+- **Gemini CLI** — Google's AI assistant
+
+### Development Environment
+- **Python 3.12** — available for development
+- **Node.js 24** — JavaScript/TypeScript support
+- **GitHub CLI** — `gh` for repos, PRs, and issues
+- **VS Code Extensions** — Python and Pylint pre-configured
+
+### Agent Skills
+- **`playwright-cli`** — browser automation and Playwright test authoring for Claude; `setup.sh` installs it from upstream at container-create time, so it's always current
+
+## Quick Examples
+
+### Using Claude
+```bash
+# Start Claude
+claude
+
+# First-time authentication (follow prompts)
+# Claude will prompt you to authenticate
+# Complete the OAuth flow in your browser and copy over the OAuth code
+# Claude securely stores credentials for future use
+
+# Ask Claude to interact with a webpage
+"Create a simple HTML file called helloPlaywright.html with a colorful heading saying 'Hello Playwright!', then use playwright-cli to take a screenshot of it."
+```
+
+Claude will create the file, open it in the browser, and capture a screenshot!
+
+For detailed authentication setup, see the [official Claude Code setup guide](https://docs.claude.com/en/docs/claude-code/setup).
+
+### Using Gemini
+```bash
+# Start Gemini CLI
+gemini
+
+# Authentication may be required (follow prompts)
+
+# Ask Gemini to interact with a webpage
+"Create an HTML file called simpleForm.html with a form with field validation, then use playwright-cli to navigate to it and take a screenshot"
+```
+
+### Using Codex
+```bash
+# Start Codex CLI
+codex
+
+# Authentication may be required (follow prompts)
+
+# Ask Codex to analyze a webpage
+"Create a simple HTML file called helloPlaywright.html with a colorful heading saying 'Hello Playwright!', then use playwright-cli to take a screenshot of it."
+```
+
+### Running Multiple AI Sessions
+You can run different AI assistants in separate terminals:
+```bash
+# Terminal 1
+claude
+
+# Terminal 2
+gemini
+
+# Terminal 3
+codex
+```
+
+## Configuration
+
+The container's configuration lives in `.devcontainer/`, which you can edit to customize the setup as desired. It's recommended you inspect the files there to familiarize yourself with what'll be available.
+
+### What `setup.sh` does
+During container creation, `setup.sh` runs in this order:
+1. Installs Claude Code via the native installer
+2. Configures a custom npm registry, if `NPM_REGISTRY` is set (see below)
+3. Installs the Codex CLI and Gemini CLI
+4. Installs `@playwright/cli` globally
+5. Writes the browser config below to `.playwright/cli.config.json` (the default discovery path)
+6. Runs `playwright-cli install --skills`, which initializes the workspace and copies the Playwright CLI skill to `.claude/skills/playwright-cli/`
+7. Runs `playwright-cli install-browser chromium --with-deps`, which fetches the exact Chromium revision the CLI pins, plus the headless shell and ffmpeg, plus the OS-level packages Docker images lack
+8. Verifies the browser actually launches, failing the build loudly if it can't
+
+Step 7 deliberately does the browser work in a single command. Installing Chromium via stable `playwright` as well would pull a *different* pinned revision — a few hundred MB that never gets launched.
+
+Run `playwright-cli --help` to see all available browser commands.
+
+### Browser Settings (`.playwright/cli.config.json`)
+```json
+{
+  "browser": {
+    "browserName": "chromium",
+    "launchOptions": {
+      "headless": true,
+      "args": ["--no-sandbox"]
+    }
+  },
+  "outputDir": ".playwright/output"
+}
+```
+
+The `--no-sandbox` flag is required because Chromium's OS-level sandbox needs `CAP_SYS_ADMIN`, which Docker containers don't have. The container itself provides isolation.
+
+Chromium is used rather than Chrome because Chrome lacks native ARM Linux builds, which breaks on Apple Silicon Macs running ARM containers.
+
+Both this file and `.claude/skills/playwright-cli/` are generated at container-create time and are gitignored — don't edit them expecting the changes to stick, and don't commit them. Because `setup.sh` rewrites the config on every container create, customize it there rather than in the generated file.
+
+## Optional Add-ons
+
+This container deliberately ships no agent skills of its own beyond the `playwright-cli` skill that `setup.sh` installs. Skills you want are worth pulling from their own source rather than vendoring copies here, so they stay current:
+
+- **[social-seo-skill](https://github.com/zeveck/social-seo-skill)** — SEO and social sharing for web apps: meta tags, Open Graph, Twitter cards, social card images (captured with Playwright), structured data, PWA support. Copy `SKILL.md` and `reference.md` into `.claude/skills/social-seo/` in your workspace.
 
 ## Corporate Networks / Custom npm Registry
 
-If your network blocks `registry.npmjs.org`, set the `NPM_REGISTRY` environment variable in your `devcontainer.json` to point at your internal registry:
+If your network blocks access to `registry.npmjs.org`, you can configure a custom npm registry by setting the `NPM_REGISTRY` environment variable in your `devcontainer.json`:
 
 ```json
 {
@@ -81,10 +194,8 @@ If your network blocks `registry.npmjs.org`, set the `NPM_REGISTRY` environment 
 }
 ```
 
-## More Info
-
-Each environment folder contains its own README with specific setup instructions, known limitations, and usage examples tailored to that environment's capabilities.
+The setup script will detect this variable and configure npm accordingly before installing any packages. If unset, npm uses the public registry as normal.
 
 ## Disclaimer
 
-These development containers are provided **as-is** for experimental and educational purposes. They may contain bugs, compatibility issues, or other problems. Use at your own risk. This is not production-ready software and no warranties are provided. AI CLI tools and MCP servers are rapidly evolving and may break or change behavior unexpectedly.
+This development container is provided **as-is** for experimental and educational purposes. It may contain bugs, compatibility issues, or other problems. Use at your own risk. This is not production-ready software and no warranties are provided. AI CLI tools and browser automation packages are rapidly evolving and may break or change behavior unexpectedly.
