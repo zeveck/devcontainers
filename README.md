@@ -39,7 +39,7 @@ You'll also want [VS Code](https://code.visualstudio.com/) and its [Dev Containe
 
 ### Without VS Code
 
-`dc` is a small Node program, so you'll need [Node.js](https://nodejs.org/) 18 or newer. You'll also want the dev containers CLI, which is the thing that actually builds and starts containers:
+This repo includes `dc`, a little command-line tool that starts the container and runs agents inside it, straight from your terminal. It's a small Node program, so you'll need [Node.js](https://nodejs.org/). You'll also want the dev containers CLI, which is the thing that actually builds and starts containers:
 
 ```bash
 npm i -g @devcontainers/cli
