@@ -47,7 +47,7 @@ npm i -g @devcontainers/cli
 
 That one is technically optional. Without it `dc` downloads the same tool on the fly, which works but adds a few seconds to every command.
 
-Then clone this repo, and from its folder:
+Then install `dc` itself. The installer lives in the `.devcontainer` folder, so run it from this repo — or from your own project, if you've already copied the folder there:
 
 ```powershell
 .\.devcontainer\dc install     # Windows
@@ -56,7 +56,7 @@ Then clone this repo, and from its folder:
 ./.devcontainer/dc install      # macOS and Linux
 ```
 
-Open a fresh terminal on Windows, then:
+That puts a copy of `dc` on your PATH, so it keeps working even if you later delete the repo. Open a fresh terminal on Windows, then:
 
 ```bash
 dc up          # first build takes a few minutes
