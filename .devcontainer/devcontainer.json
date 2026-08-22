@@ -6,6 +6,20 @@
     "ghcr.io/devcontainers/features/node:1": { "version": "24", "pnpmVersion": "none" },
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
+  // NPM_REGISTRY is read by setup.sh, a lifecycle command. containerEnv is
+  // applied at container creation so lifecycle commands definitely see it;
+  // remoteEnv's propagation to them is version-dependent.
+  "containerEnv": {
+    "NPM_REGISTRY": "${localEnv:NPM_REGISTRY}"
+  },
+  // Auth tokens are only needed interactively, so use remoteEnv: it is applied
+  // per-session rather than baked into the container config, keeping tokens out
+  // of `docker inspect`. Unset on the host resolves to empty, which gh and glab
+  // both ignore, so this is a no-op if you do not use it.
+  "remoteEnv": {
+    "GH_TOKEN": "${localEnv:GH_TOKEN}",
+    "GLAB_TOKEN": "${localEnv:GLAB_TOKEN}"
+  },
   "postCreateCommand": "bash .devcontainer/setup.sh",
   "customizations": {
     "vscode": { "extensions": ["ms-python.python", "ms-python.pylint"] }

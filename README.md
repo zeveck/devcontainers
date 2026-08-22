@@ -222,19 +222,42 @@ This container deliberately ships no agent skills of its own beyond the `playwri
 
 - **[social-seo-skill](https://github.com/zeveck/social-seo-skill)** — SEO and social sharing for web apps: meta tags, Open Graph, Twitter cards, social card images (captured with Playwright), structured data, PWA support. Copy `SKILL.md` and `reference.md` into `.claude/skills/social-seo/` in your workspace.
 
-## Corporate Networks / Custom npm Registry
+## Authenticating gh and glab across many containers
 
-If your network blocks access to `registry.npmjs.org`, you can configure a custom npm registry by setting the `NPM_REGISTRY` environment variable in your `devcontainer.json`:
+`gh auth login` uses the GitHub CLI's **OAuth app**, and GitHub issues one token per app per user. Every new login regenerates that token and invalidates every other copy — so authenticating `gh` in a second container silently logs you out of the first. If you run several containers, they will keep knocking each other out.
 
-```json
-{
-  "remoteEnv": {
-    "NPM_REGISTRY": "https://your-artifactory.example.com/api/npm/npm-repos/"
-  }
-}
+A Personal Access Token has no such behaviour: it is independent, and any number of machines and containers can use the same one at once.
+
+Set it once on your host:
+
+```bash
+export GH_TOKEN=ghp_yourtoken          # macOS / Linux
+```
+```powershell
+[Environment]::SetEnvironmentVariable('GH_TOKEN','ghp_yourtoken','User')   # Windows
 ```
 
-The setup script will detect this variable and configure npm accordingly before installing any packages. If unset, npm uses the public registry as normal.
+`devcontainer.json` forwards `GH_TOKEN` (and `GLAB_TOKEN`) from your host into the container, so `gh` is authenticated on every start with no `gh auth login`, in as many containers as you like — and it survives rebuilds, which a `gh auth login` does not. A classic PAT wants `repo`, `workflow`, `read:org`, and `gist` to match what `gh` normally requests.
+
+If you leave the variables unset they resolve to empty, which both CLIs ignore, so `gh auth login` keeps working as before.
+
+## Corporate Networks / Custom npm Registry
+
+If your network blocks access to `registry.npmjs.org`, set `NPM_REGISTRY` on your host and `devcontainer.json` forwards it in:
+
+```bash
+export NPM_REGISTRY=https://your-artifactory.example.com/api/npm/npm-repos/
+```
+
+Or hard-code it in `devcontainer.json`:
+
+```json
+"containerEnv": { "NPM_REGISTRY": "https://your-artifactory.example.com/api/npm/npm-repos/" }
+```
+
+`setup.sh` detects the variable and configures npm before installing any packages. If unset, npm uses the public registry as normal.
+
+It is deliberately `containerEnv` rather than `remoteEnv`: `setup.sh` runs as a lifecycle command, and whether `remoteEnv` reaches lifecycle commands varies by Dev Containers version — a silent skip here would send every install to the blocked public registry.
 
 ## Disclaimer
 
