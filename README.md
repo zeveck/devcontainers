@@ -73,7 +73,9 @@ cp -r /path/to/devcontainers/.devcontainer /path/to/your-project/
 
 Open that project in VS Code, reopen in container, and you're set. Everything else installs itself.
 
-Building the container adds two folders to your project as it goes: `.playwright/`, holding the browser's config and any screenshots it takes, and `.claude/skills/playwright-cli/`, the skill Claude uses to drive the browser. Both are written fresh on every build. Claude adds `.claude/settings.local.json` as well, once you start approving permissions. None of it is worth committing, so add them to your `.gitignore`:
+Building the container adds two folders to your project as it goes: `.playwright/`, holding the browser's config and any screenshots it takes, and `.claude/skills/playwright-cli/`, the skill Claude uses to drive the browser. Both are written fresh on every build. Claude adds `.claude/settings.local.json` as well, once you start approving permissions.
+
+Whether those belong in git is up to you. The first two are rebuilt from scratch every time, so committing them mostly adds noise, and the third is particular to you rather than the project. If you'd rather not track them:
 
 ```gitignore
 .playwright/
