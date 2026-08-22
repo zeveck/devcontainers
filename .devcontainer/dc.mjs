@@ -296,8 +296,11 @@ function cmdDoctor() {
   const [c] = devcontainerCmd();
   console.log(`${ok(true)} devcontainer cli via ${c === 'devcontainer' ? 'global install' : 'npx (slower; npm i -g @devcontainers/cli)'}`);
 
+  // Not being in a project is not a broken setup, so do not shout FAIL at
+  // someone running `dc doctor` from their home directory to check the install.
   const root = findProjectRoot(process.cwd());
-  console.log(`${ok(!!root)} project ${root || 'no .devcontainer/devcontainer.json found'}`);
+  if (root) console.log(`${ok(true)} project ${root}`);
+  else console.log(`--   project  none here; cd to a folder with .devcontainer/devcontainer.json`);
   if (root && dockerOk) {
     const cs = findContainers(root);
     console.log(`     containers: ${cs.length ? cs.map((x) => `${x.id} (${x.state})`).join(', ') : 'none'}`);
