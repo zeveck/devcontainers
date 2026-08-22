@@ -39,7 +39,15 @@ You'll also want [VS Code](https://code.visualstudio.com/) and its [Dev Containe
 
 ### Without VS Code
 
-You'll also want [Node.js](https://nodejs.org/) 18 or newer. Clone the repo, then from its folder:
+`dc` is a small Node program, so you'll need [Node.js](https://nodejs.org/) 18 or newer. You'll also want the dev containers CLI, which is the thing that actually builds and starts containers:
+
+```bash
+npm i -g @devcontainers/cli
+```
+
+That one is technically optional. Without it `dc` downloads the same tool on the fly, which works but adds a few seconds to every command.
+
+Then clone this repo, and from its folder:
 
 ```powershell
 .\.devcontainer\dc install     # Windows
@@ -71,7 +79,7 @@ The only thing you need is the `.devcontainer` folder. Copy it into any project:
 cp -r /path/to/devcontainers/.devcontainer /path/to/your-project/
 ```
 
-Open that project in VS Code, reopen in container, and you're set. Everything else installs itself.
+Then open that project in VS Code and reopen in container, or run `dc up` from its folder. Either way everything else installs itself.
 
 Building the container adds two folders to your project as it goes: `.playwright/`, holding the browser's config and any screenshots it takes, and `.claude/skills/playwright-cli/`, the skill Claude uses to drive the browser. Both are written fresh on every build. Claude adds `.claude/settings.local.json` as well, once you start approving permissions.
 
@@ -85,7 +93,7 @@ Whether those belong in git is up to you. The first two are rebuilt from scratch
 
 ## The `dc` command
 
-`dc` drives the container from a terminal, with no VS Code involved. Installing it is covered [above](#without-vs-code). Installing the dev containers CLI as well (`npm i -g @devcontainers/cli`) is optional but makes every command noticeably faster.
+`dc` drives the container from a terminal, with no VS Code involved. Installing it is covered [above](#without-vs-code).
 
 Once installed you can type `dc` anywhere. It picks up whichever project you're currently sitting in.
 
