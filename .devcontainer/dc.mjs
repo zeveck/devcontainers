@@ -64,6 +64,29 @@ export function buildExecArgs(root, argv, { login = true } = {}) {
 /** Split dc's own flags from positional args. Only used for dc's own commands —
  *  forwarding commands (exec, claude, ...) pass their argv through untouched so
  *  user flags keep their original order and meaning. */
+/**
+ * Message for a failed prerequisite, or null if everything needed is present.
+ * Pure so the wording is unit-tested; the probing lives in preflight() below.
+ */
+export function preflightError(hasDocker, daemonRunning, plat = platform()) {
+  const desktop = plat === 'win32' || plat === 'darwin';
+  if (!hasDocker) {
+    return 'Docker not found on PATH.\n'
+      + (desktop
+        ? '  Install Docker Desktop: https://www.docker.com/products/docker-desktop/'
+        : '  Install Docker: https://docs.docker.com/engine/install/')
+      + '\n  Then run `dc doctor` to verify.';
+  }
+  if (!daemonRunning) {
+    return 'Docker is installed but not running.\n'
+      + (desktop
+        ? '  Start Docker Desktop and wait for it to report "running", then try again.'
+        : '  Start the daemon (e.g. sudo systemctl start docker), then try again.')
+      + '\n  `dc doctor` will confirm.';
+  }
+  return null;
+}
+
 export function parseArgs(argv) {
   const flags = new Set();
   const rest = [];
@@ -93,6 +116,15 @@ function devcontainerCmd() {
 function dc(args) {
   const [cmd, prefix] = devcontainerCmd();
   return run(cmd, [...prefix, ...args]).status ?? 1;
+}
+
+/** Fail fast with a readable message instead of letting the CLI emit a stack trace. */
+function preflight() {
+  const hasDocker = has('docker');
+  const daemon = hasDocker && capture('docker', ['info']).status === 0;
+  const err = preflightError(hasDocker, daemon);
+  if (err) { console.error(`dc: ${err}`); return false; }
+  return true;
 }
 
 function requireRoot() {
@@ -245,6 +277,10 @@ function main(argv) {
   const raw = argv.slice(1);
   const { flags, rest } = FORWARDING.has(cmd) ? { flags: new Set(), rest: raw } : parseArgs(raw);
 
+  if (Number(process.versions.node.split('.')[0]) < 18) {
+    console.error(`dc: Node 18+ required (found ${process.versions.node}).`);
+    return 1;
+  }
   if (!cmd || cmd === 'help' || flags.has('--help')) { console.log(HELP); return 0; }
   if (cmd === 'version' || flags.has('--version')) { console.log('dc 1.0.0'); return 0; }
   if (cmd === 'install') return cmdInstall(flags, rest);
@@ -252,6 +288,8 @@ function main(argv) {
   if (cmd === 'doctor') return cmdDoctor();
 
   const root = requireRoot();
+  // Every remaining command talks to Docker one way or another.
+  if (!preflight()) return 1;
 
   switch (cmd) {
     case 'up': {

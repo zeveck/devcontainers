@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { join, resolve } from 'node:path';
-import { findProjectRoot, normalizeLocalFolder, buildExecArgs, parseArgs } from '../.devcontainer/dc.mjs';
+import { findProjectRoot, normalizeLocalFolder, buildExecArgs, parseArgs, preflightError } from '../.devcontainer/dc.mjs';
 
 test('normalizeLocalFolder: windows drive-letter case and slashes', () => {
   const a = normalizeLocalFolder('C:\\Users\\rich\\proj', 'win32');
@@ -50,4 +50,18 @@ test('parseArgs: separates flags from positionals', () => {
   const { flags, rest } = parseArgs(['--rebuild', 'name', '--no-cache']);
   assert.ok(flags.has('--rebuild') && flags.has('--no-cache'));
   assert.deepEqual(rest, ['name']);
+});
+
+test('preflightError: missing docker names the platform installer', () => {
+  assert.match(preflightError(false, false, 'win32'), /Docker Desktop/);
+  assert.match(preflightError(false, false, 'linux'), /docs\.docker\.com\/engine/);
+});
+
+test('preflightError: installed but stopped is a different message', () => {
+  assert.match(preflightError(true, false, 'darwin'), /installed but not running/);
+  assert.match(preflightError(true, false, 'linux'), /systemctl/);
+});
+
+test('preflightError: null when everything is present', () => {
+  assert.equal(preflightError(true, true, 'linux'), null);
 });
