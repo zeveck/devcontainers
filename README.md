@@ -13,7 +13,6 @@ It all runs locally, on your own hardware. The difference is that the agents and
 - [Signing in to GitHub and GitLab](#signing-in-to-github-and-gitlab)
 - [Letting an agent use a browser](#letting-an-agent-use-a-browser)
 - [Changing how it's set up](#changing-how-its-set-up)
-- [Add-ons](#add-ons)
 
 ## What's inside
 
@@ -158,12 +157,6 @@ You can also write it straight into `devcontainer.json`:
 ```json
 "containerEnv": { "NPM_REGISTRY": "https://your-registry.example.com/api/npm/npm-repos/" }
 ```
-
-## Add-ons
-
-Claude comes with one skill already installed, `playwright-cli`, which is what lets it drive the browser. Another one you might want:
-
-- [social-seo-skill](https://github.com/zeveck/social-seo-skill) handles meta tags, Open Graph, Twitter cards, social preview images, and PWA support. Copy `SKILL.md` and `reference.md` into `.claude/skills/social-seo/`.
 
 ## Disclaimer
 
