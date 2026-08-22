@@ -2,7 +2,7 @@
 
 A development container that's ready to work in, with Claude Code, Codex CLI, and Gemini CLI already installed and set up. Open a project, start an agent, get on with it.
 
-Nothing gets installed on your own machine, and the agents only see the project you opened.
+It all runs locally, on your own hardware. The difference is that the agents and their tools live inside the container rather than on your system, and they only see the project you opened.
 
 ## Contents
 
