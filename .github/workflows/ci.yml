@@ -35,6 +35,15 @@ jobs:
           .\.devcontainer\dc.cmd version
           .\.devcontainer\dc.cmd help > NUL
 
+      # Informational: the README documents one extensionless command for Windows.
+      # PowerShell resolves it (asserted below); this records whether CMD does too,
+      # so the docs can gain a CMD-specific line if it does not.
+      - name: Does CMD resolve the extensionless dc?
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        shell: cmd
+        run: .\.devcontainer\dc version
+
       - name: Bare `dc` prefers the ps1 in PowerShell
         if: runner.os == 'Windows'
         shell: pwsh

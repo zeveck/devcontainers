@@ -1,66 +1,65 @@
 # AI Browser Control Dev Container
 
-A ready-made development environment where Claude, Codex, and Gemini can **drive a real web browser** — click through your app, fill in forms, and take screenshots they can actually look at.
+AI assistants can write your front-end code, but they can't normally see whether it works. This container gives them a browser.
 
-Everything runs inside a Docker container, so it doesn't touch your machine's setup.
+Ask Claude to check your signup form and it will open the page, type into the fields, click the button, and take a screenshot it can read. If the layout breaks at the third step, it can tell you so.
 
-## What you get
+Everything runs inside Docker, so none of it gets installed on your computer.
 
-- **Three AI assistants** — Claude Code, Codex CLI, Gemini CLI
-- **A browser they can control** — Chromium, driven through the Playwright CLI
-- **A working dev environment** — Python 3.12, Node.js 24, `gh` (GitHub) and `glab` (GitLab)
-- **`dc`** — an optional command for using the container without VS Code
+## What's inside
 
-This is for *development*, not automated test suites. Your assistant can open your app, use it like a person would, see what's on screen, and tell you what's broken.
+- Claude Code, Codex CLI, and Gemini CLI
+- Chromium, which they control through the Playwright CLI
+- Python 3.12, Node.js 24, and the GitHub and GitLab command-line tools
+- `dc`, an optional command for people who'd rather not use VS Code
 
-## Quick start
+A note on what this is for: it's built for working on your app, not for running a test suite. The assistant uses your site the way a person would and reports back.
 
-You'll need [Docker Desktop](https://www.docker.com/products/docker-desktop/) (running), [VS Code](https://code.visualstudio.com/), and the [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers).
+## Getting started
+
+Install [Docker Desktop](https://www.docker.com/products/docker-desktop/), [VS Code](https://code.visualstudio.com/), and the [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers). Make sure Docker is actually running.
+
+Then:
 
 1. Clone this repo and open the folder in VS Code.
-2. When VS Code offers to **"Reopen in Container"**, click it. (Or: Command Palette → *Dev Containers: Reopen in Container*.)
-3. Wait a few minutes while it installs everything.
-4. Open a terminal in VS Code and start an assistant:
+2. VS Code will offer to "Reopen in Container". Click it. (If it doesn't ask, open the Command Palette and choose *Dev Containers: Reopen in Container*.)
+3. Go make coffee. The first build takes a few minutes.
+4. Open a terminal in VS Code and type `claude`, or `codex`, or `gemini`.
 
-```bash
-claude      # or: codex, gemini
-```
+Each assistant asks you to sign in the first time you run it. Follow the prompts.
 
-The first time, it will ask you to sign in — follow the prompts.
+### Your first screenshot
 
-### Try it
-
-Ask Claude:
+Start Claude and paste this in:
 
 > Create an HTML file called hello.html with a colorful heading saying 'Hello Playwright!', then use playwright-cli to take a screenshot of it.
 
-It will write the file, open it in the browser, and show you the screenshot.
+You'll get the file, and a screenshot of it rendered in a real browser.
 
-You can run several assistants at once — just open a separate terminal for each.
+Want a second opinion? Open another terminal and run a different assistant. They can all work at once.
 
 ## Signing in to GitHub and GitLab
 
-Run `auth` inside the container:
+Run `auth` and it will walk you through it:
 
 ```bash
-auth            # picks GitHub or GitLab based on this project's git remote
-auth --gh       # GitHub only
-auth --glab     # GitLab only
+auth            # figures out GitHub or GitLab from your project's git remote
+auth --gh
+auth --glab
 auth --both
 auth --force    # replace a login you already have
 auth --logout   # sign out
 ```
 
-It points you at the right page to create a token, then takes the token you paste and signs you in.
+It sends you to the right page to create an access token, then takes the token you paste back and signs you in.
 
-Two things to know:
+Two quirks are worth knowing about. The first is why `auth` uses a token instead of the normal browser sign-in: GitHub allows only one `gh auth login` per account, so signing in from a second container quietly logs you out of the first. If you work in several containers, they'll keep knocking each other offline. Access tokens don't work that way, and one token can be used everywhere at once.
 
-- **It uses a token instead of the usual browser sign-in.** GitHub only allows one `gh auth login` session per account, so signing in from a second container logs you out of the first. Tokens don't have that problem — you can use the same one everywhere at once.
-- **Rebuilding the container signs you out**, because logins aren't saved outside it. Just run `auth` again.
+The second is that rebuilding a container signs you out again, since logins aren't stored outside it. Run `auth` and carry on.
 
-`auth --logout` only signs out *this* container. It doesn't cancel the token, so your other containers keep working.
+Signing out with `auth --logout` only affects the container you're in. The token itself stays valid, so anywhere else you've used it keeps working.
 
-## Using it in your own project
+## Using it on your own projects
 
 You don't have to work inside this repo. Copy one folder into any project:
 
@@ -68,9 +67,9 @@ You don't have to work inside this repo. Copy one folder into any project:
 cp -r /path/to/devcontainers/.devcontainer /path/to/your-project/
 ```
 
-Open your project in VS Code and "Reopen in Container". That's it — everything installs itself.
+Open that project in VS Code, reopen in container, and you're set. Everything installs itself.
 
-The container creates a couple of working folders in your project. Add these to your `.gitignore`:
+The container leaves a couple of working folders behind in your project. Add them to your `.gitignore`:
 
 ```gitignore
 .playwright/
@@ -78,60 +77,51 @@ The container creates a couple of working folders in your project. Add these to 
 .claude/settings.local.json
 ```
 
-## Using it without VS Code: `dc`
+## Skipping VS Code with `dc`
 
-`dc` runs the same container straight from your terminal.
+If you'd rather stay in a terminal, `dc` runs the same container without VS Code involved. You'll need Docker and Node 18 or newer. Installing the dev containers CLI as well (`npm i -g @devcontainers/cli`) is optional but makes every command noticeably faster.
 
-**You'll need** Docker and Node 18+. Also recommended: `npm i -g @devcontainers/cli` (without it `dc` still works, but every command is slower).
+To install, run this from the project folder:
 
-### Install it
-
-```bash
-.devcontainer/dc install               # macOS / Linux
-```
 ```powershell
-.\.devcontainer\dc install             # Windows PowerShell
-.\.devcontainer\dc.cmd install         # Windows CMD
+.\.devcontainer\dc install     # Windows
+```
+```bash
+./.devcontainer/dc install      # macOS and Linux
 ```
 
-**On Windows, open a new terminal afterwards** — that's when the new PATH takes effect.
+On Windows, open a fresh terminal afterwards or it won't find the command yet.
 
-After installing, just type `dc` from anywhere. It works in whatever project you're currently in, not only this one.
-
-### Commands
+After that you can type `dc` anywhere. It picks up whichever project you're currently sitting in.
 
 ```
-dc up          create and start the container   (--rebuild to start fresh)
-dc build       rebuild the image                (--no-cache to skip the cache)
+dc up          create and start the container   (--rebuild to start over)
+dc build       rebuild the image                (--no-cache to ignore the cache)
 dc shell       open a shell inside it
-dc claude      run Claude inside it             (also: codex, gemini, pw)
+dc claude      run Claude inside it             (also codex, gemini, pw)
 dc exec ...    run any command inside it
-dc down        stop it                          (dc rm also deletes it)
-dc status      show the container for this project
+dc down        stop it                          (dc rm deletes it too)
+dc status      show this project's container
 dc logs        show its output                  (--follow to keep watching)
-dc doctor      check that everything's set up right
+dc doctor      check your setup
 ```
 
-If something isn't working, `dc doctor` is the place to start — it checks Docker, Node, and the project setup, and tells you what's missing.
+When something won't start, run `dc doctor` first. It checks Docker, Node, and your project, and tells you which one is the problem.
 
-Other options: `dc install <name>` installs under a different name — worth doing on macOS and Linux, where `dc` is already the name of a built-in calculator. `dc uninstall` removes it.
+One thing to watch for on macOS and Linux: they already ship a small calculator program called `dc`, and this will hide it. If you use it, install under a different name with `dc install <name>`. To remove everything, run `dc uninstall`.
 
-## Customizing
+## Changing how it's set up
 
-Everything lives in the `.devcontainer/` folder:
+The whole configuration is five files in `.devcontainer/`:
 
-| File | What it does |
-|---|---|
-| `devcontainer.json` | Base image, VS Code extensions, container settings |
-| `setup.sh` | Installs the assistants, the browser, and the CLIs |
-| `auth` | The sign-in helper |
-| `dc`, `dc.cmd`, `dc.ps1`, `dc.mjs` | The `dc` command (one entry point per shell) |
+- `devcontainer.json` sets the base image, VS Code extensions, and container options
+- `setup.sh` installs the assistants, the browser, and the command-line tools
+- `auth` is the sign-in helper
+- `dc`, `dc.cmd`, `dc.ps1`, and `dc.mjs` make up the `dc` command
 
-To change what gets installed, edit `setup.sh` and rebuild the container.
+To add or remove software, edit `setup.sh` and rebuild the container.
 
-### Browser settings
-
-The browser is configured in `.playwright/cli.config.json`:
+The browser's own settings live in `.playwright/cli.config.json`:
 
 ```json
 {
@@ -143,34 +133,34 @@ The browser is configured in `.playwright/cli.config.json`:
 }
 ```
 
-`--no-sandbox` is required inside Docker. Chromium is used rather than Chrome because Chrome has no ARM build, which would break on Apple Silicon Macs.
+`--no-sandbox` is necessary inside Docker. Chromium is used rather than Chrome because Chrome has no ARM build, so it would fail on Apple Silicon Macs.
 
-This file is rewritten every time the container is created, so change it in `setup.sh` rather than editing it directly. The same goes for `.claude/skills/playwright-cli/`.
+Careful with that file, though: it gets rewritten from scratch every time the container is created, so any edits disappear. Change it in `setup.sh` instead. Same goes for `.claude/skills/playwright-cli/`.
 
-Run `playwright-cli --help` to see everything the browser tools can do.
+For the full list of things the browser can do, run `playwright-cli --help`.
 
 ## If your network blocks npmjs.org
 
-Set `NPM_REGISTRY` on your machine before starting the container:
+Set `NPM_REGISTRY` before you start the container and it will be used for every install:
 
 ```bash
 export NPM_REGISTRY=https://your-registry.example.com/api/npm/npm-repos/
 ```
 
-Or put it directly in `devcontainer.json`:
+You can also write it straight into `devcontainer.json`:
 
 ```json
 "containerEnv": { "NPM_REGISTRY": "https://your-registry.example.com/api/npm/npm-repos/" }
 ```
 
-Setup uses it for every install. If it isn't set, the public registry is used as normal.
+Leave it alone and the public registry is used as usual.
 
 ## Add-ons
 
-This container includes one Claude skill (`playwright-cli`, installed automatically). Others worth adding:
+Claude comes with one skill already installed, `playwright-cli`, which is what lets it drive the browser. Another one you might want:
 
-- **[social-seo-skill](https://github.com/zeveck/social-seo-skill)** — meta tags, Open Graph, Twitter cards, social preview images, and PWA support for web apps. Copy `SKILL.md` and `reference.md` into `.claude/skills/social-seo/`.
+- [social-seo-skill](https://github.com/zeveck/social-seo-skill) handles meta tags, Open Graph, Twitter cards, social preview images, and PWA support. Copy `SKILL.md` and `reference.md` into `.claude/skills/social-seo/`.
 
 ## Disclaimer
 
-Provided **as-is** for experimental and educational purposes. It may contain bugs or compatibility problems — use at your own risk. This is not production software and no warranties are provided. AI CLI tools and browser automation packages change quickly and may break unexpectedly.
+This is provided as-is, for experimenting and learning. Expect rough edges. It isn't production software and comes with no warranty. The AI tools and browser packages it installs change frequently and occasionally break.
