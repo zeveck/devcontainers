@@ -113,6 +113,7 @@ Everything that runs inside the container goes through a **login** shell. That i
 - **Python 3.12** — available for development
 - **Node.js 24** — JavaScript/TypeScript support
 - **GitHub CLI** — `gh` for repos, PRs, and issues
+- **GitLab CLI** — `glab` for the same against GitLab
 - **VS Code Extensions** — Python and Pylint pre-configured
 
 ### Agent Skills
@@ -182,11 +183,14 @@ During container creation, `setup.sh` runs in this order:
 1. Installs Claude Code via the native installer
 2. Configures a custom npm registry, if `NPM_REGISTRY` is set (see below)
 3. Installs the Codex CLI and Gemini CLI
-4. Installs `@playwright/cli` globally
-5. Writes the browser config below to `.playwright/cli.config.json` (the default discovery path)
-6. Runs `playwright-cli install --skills`, which initializes the workspace and copies the Playwright CLI skill to `.claude/skills/playwright-cli/`
-7. Runs `playwright-cli install-browser chromium --with-deps`, which fetches the exact Chromium revision the CLI pins, plus the headless shell and ffmpeg, plus the OS-level packages Docker images lack
-8. Verifies the browser actually launches, failing the build loudly if it can't
+4. Installs the GitLab CLI (`glab`) from its latest release, matching the container's architecture
+5. Installs `@playwright/cli` globally
+6. Writes the browser config below to `.playwright/cli.config.json` (the default discovery path)
+7. Runs `playwright-cli install --skills`, which initializes the workspace and copies the Playwright CLI skill to `.claude/skills/playwright-cli/`
+8. Runs `playwright-cli install-browser chromium --with-deps`, which fetches the exact Chromium revision the CLI pins, plus the headless shell and ffmpeg, plus the OS-level packages Docker images lack
+9. Verifies the browser actually launches, failing the build loudly if it can't
+
+`gh` comes from the `github-cli` devcontainer feature. `glab` has no official feature, so step 4 fetches the release binary directly — and is the one step that is deliberately non-fatal, since it's a convenience and `gitlab.com` may be blocked on restricted networks.
 
 Step 7 deliberately does the browser work in a single command. Installing Chromium via stable `playwright` as well would pull a *different* pinned revision — a few hundred MB that never gets launched.
 

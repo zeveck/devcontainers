@@ -20,6 +20,30 @@ npm install -g @openai/codex@latest
 echo "✨ Installing Gemini CLI..."
 npm install -g @google/gemini-cli@latest
 
+# Install the GitLab CLI (glab).
+# gh comes from the github-cli devcontainer feature, but glab has no official
+# feature, so fetch the release binary directly. The version is resolved at build
+# time rather than pinned, and the architecture comes from dpkg, so this works on
+# both x86_64 and ARM (Apple Silicon) containers.
+#
+# Non-fatal on purpose: glab is a convenience, and gitlab.com may be unreachable
+# on restricted networks. A failure here should not cost you the agents and
+# browser stack that are the point of this container.
+echo "🦊 Installing GitLab CLI (glab)..."
+if ! (
+  set -e
+  GLAB_ARCH="$(dpkg --print-architecture)"
+  GLAB_URL="$(curl -fsSL --max-time 30 \
+    'https://gitlab.com/api/v4/projects/gitlab-org%2Fcli/releases?per_page=1' \
+    | python3 -c "import json,sys;d=json.load(sys.stdin)[0];print(next(l['url'] for l in d['assets']['links'] if l['name'].endswith('linux_${GLAB_ARCH}.tar.gz')))")"
+  curl -fsSL --max-time 180 "$GLAB_URL" -o /tmp/glab.tar.gz
+  # No --strip-components: the tarball's bin/glab must land in /usr/local/bin.
+  sudo tar -xzf /tmp/glab.tar.gz -C /usr/local bin/glab
+  rm -f /tmp/glab.tar.gz
+); then
+  echo "⚠️  glab install failed (network or upstream change) — continuing without it."
+fi
+
 # Install Playwright CLI globally.
 echo "🔧 Installing Playwright CLI..."
 npm install -g @playwright/cli@latest
