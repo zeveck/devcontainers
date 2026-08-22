@@ -53,8 +53,27 @@ export function normalizeLocalFolder(p, plat = platform()) {
  * playwright-cli via /etc/profile.d, neither of which a plain `devcontainer exec`
  * sources. Without -l these are "command not found".
  */
-export function buildExecArgs(root, argv, { login = true } = {}) {
+/**
+ * Terminal capability vars to forward into the container.
+ *
+ * `devcontainer exec` passes nothing through by default, so a tool that renders
+ * 256-colour or truecolour output degrades to the nearest 16-colour approximation
+ * (Claude Code's orange turns red). VS Code sets these itself, which is why the
+ * same tool looks right in its terminal. Windows shells set neither, so default
+ * to values every modern terminal, including Windows Terminal, supports.
+ *
+ * These only advertise capability; they do not force colour on, so piped output
+ * is unaffected -- tools still check isatty.
+ */
+export function terminalEnv(env = {}) {
+  const out = [`TERM=${env.TERM || 'xterm-256color'}`, `COLORTERM=${env.COLORTERM || 'truecolor'}`];
+  if (env.LANG) out.push(`LANG=${env.LANG}`);
+  return out;
+}
+
+export function buildExecArgs(root, argv, { login = true, env = {} } = {}) {
   const base = ['exec', '--workspace-folder', root];
+  for (const kv of terminalEnv(env)) base.push('--remote-env', kv);
   if (!login) return [...base, ...argv];
   const [cmd, ...rest] = argv;
   // `bash -lc '<script>' <argv0> <args...>` — argv0 fills $0 so "$@" is the real args.
@@ -96,11 +115,16 @@ export function parseArgs(argv) {
 
 // ── process helpers ─────────────────────────────────────────────────────────
 
+// DOCKER_CLI_HINTS=false suppresses Docker Desktop's "What's next: try docker
+// debug ..." promo, which the docker CLI prints after commands the devcontainer
+// CLI runs on our behalf -- noise in the middle of every `dc claude`.
+const CHILD_ENV = { ...process.env, DOCKER_CLI_HINTS: 'false' };
+
 const run = (cmd, args, opts = {}) =>
-  spawnSync(cmd, args, { stdio: 'inherit', shell: IS_WIN, ...opts });
+  spawnSync(cmd, args, { stdio: 'inherit', shell: IS_WIN, env: CHILD_ENV, ...opts });
 
 const capture = (cmd, args) =>
-  spawnSync(cmd, args, { encoding: 'utf8', shell: IS_WIN });
+  spawnSync(cmd, args, { encoding: 'utf8', shell: IS_WIN, env: CHILD_ENV });
 
 function has(cmd) {
   const r = capture(IS_WIN ? 'where' : 'which', [cmd]);
@@ -321,16 +345,16 @@ function main(argv) {
     case 'build':
       return dc(['build', '--workspace-folder', root, ...(flags.has('--no-cache') ? ['--no-cache'] : [])]);
     case 'shell':
-      return dc(['exec', '--workspace-folder', root, 'bash', '-l']);
+      return dc(buildExecArgs(root, ['bash', '-l'], { login: false, env: process.env }));
     case 'exec': {
       if (!raw.length) { console.error('dc exec: need a command'); return 1; }
       // Login shell here too: node/npm resolve via /etc/profile.d in this image,
       // so a non-login exec would not find them either.
-      return dc(buildExecArgs(root, raw));
+      return dc(buildExecArgs(root, raw, { env: process.env }));
     }
     case 'claude': case 'codex': case 'gemini': case 'pw': {
       const tool = cmd === 'pw' ? 'playwright-cli' : cmd;
-      return dc(buildExecArgs(root, [tool, ...raw]));
+      return dc(buildExecArgs(root, [tool, ...raw], { env: process.env }));
     }
     case 'down': case 'rm': {
       const cs = findContainers(root);

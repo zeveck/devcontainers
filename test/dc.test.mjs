@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { join, resolve } from 'node:path';
-import { findProjectRoot, normalizeLocalFolder, buildExecArgs, parseArgs, preflightError } from '../.devcontainer/dc.mjs';
+import { findProjectRoot, normalizeLocalFolder, buildExecArgs, parseArgs, preflightError, terminalEnv } from '../.devcontainer/dc.mjs';
 
 test('normalizeLocalFolder: windows drive-letter case and slashes', () => {
   const a = normalizeLocalFolder('C:\\Users\\rich\\proj', 'win32');
@@ -34,16 +34,29 @@ test('findProjectRoot: terminates at the filesystem root', () => {
 
 test('buildExecArgs: uses a LOGIN shell and passes args via "$@"', () => {
   const a = buildExecArgs('/proj', ['claude', '--model', 'opus', 'say "hi"']);
-  assert.deepEqual(a, [
-    'exec', '--workspace-folder', '/proj',
+  assert.deepEqual(a.slice(-7), [
     'bash', '-lc', 'claude "$@"',
     'claude', '--model', 'opus', 'say "hi"',
   ]);
+  assert.equal(a[0], 'exec');
+});
+
+test('terminalEnv: defaults for shells that set nothing (Windows)', () => {
+  assert.deepEqual(terminalEnv({}), ['TERM=xterm-256color', 'COLORTERM=truecolor']);
+});
+
+test('terminalEnv: forwards the host values when present', () => {
+  assert.deepEqual(terminalEnv({ TERM: 'screen-256color', COLORTERM: '24bit', LANG: 'en_US.UTF-8' }),
+    ['TERM=screen-256color', 'COLORTERM=24bit', 'LANG=en_US.UTF-8']);
+});
+
+test('buildExecArgs: advertises colour capability to the container', () => {
+  const a = buildExecArgs('/p', ['claude'], { env: {} });
+  assert.ok(a.includes('--remote-env') && a.includes('COLORTERM=truecolor'));
 });
 
 test('buildExecArgs: login:false bypasses the shell wrapper', () => {
-  assert.deepEqual(buildExecArgs('/p', ['ls', '-la'], { login: false }),
-    ['exec', '--workspace-folder', '/p', 'ls', '-la']);
+  assert.deepEqual(buildExecArgs('/p', ['ls', '-la'], { login: false }).slice(-2), ['ls', '-la']);
 });
 
 test('parseArgs: separates flags from positionals', () => {
