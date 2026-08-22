@@ -26,13 +26,16 @@ It all runs locally, on your own hardware. The difference is that the agents and
 
 There are two ways in, and they give you the same container. Use VS Code if you want an editor attached to it, or `dc` if you live in a terminal.
 
-Either way you need [Docker Desktop](https://www.docker.com/products/docker-desktop/), and it has to actually be running.
+Either way you need two things:
+
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/), and it has to actually be running.
+- A project with the `.devcontainer` folder in it. The simplest start is cloning this repo, which is exactly that; [copying the folder into your own project](#using-it-on-your-own-projects) works the same way.
 
 ### With VS Code
 
 You'll also want [VS Code](https://code.visualstudio.com/) and its [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers).
 
-1. Clone this repo and open the folder in VS Code.
+1. Open the project folder in VS Code.
 2. VS Code will offer to "Reopen in Container". Click it. (If it doesn't ask, open the Command Palette and choose *Dev Containers: Reopen in Container*.)
 3. Go make coffee. The first build takes a few minutes.
 4. Open a terminal in VS Code and type `claude`, or `codex`, or `gemini`.
@@ -47,7 +50,7 @@ npm i -g @devcontainers/cli
 
 That one is technically optional. Without it `dc` downloads the same tool on the fly, which works but adds a few seconds to every command.
 
-Then install `dc` itself. The installer lives in the `.devcontainer` folder, so run it from this repo — or from your own project, if you've already copied the folder there:
+Then install `dc` itself, from the project folder:
 
 ```powershell
 .\.devcontainer\dc install     # Windows
@@ -56,7 +59,7 @@ Then install `dc` itself. The installer lives in the `.devcontainer` folder, so 
 ./.devcontainer/dc install      # macOS and Linux
 ```
 
-That puts a copy of `dc` on your PATH, so it keeps working even if you later delete the repo. Open a fresh terminal on Windows, then:
+That puts a copy of `dc` on your PATH, so it works from anywhere and keeps working even if you delete the project it came from. Open a fresh terminal on Windows, then:
 
 ```bash
 dc up          # first build takes a few minutes
