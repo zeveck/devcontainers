@@ -35,14 +35,18 @@ jobs:
           .\.devcontainer\dc.cmd version
           .\.devcontainer\dc.cmd help > NUL
 
-      - name: Shim runs (powershell, via PATHEXT)
+      - name: Bare `dc` prefers the ps1 in PowerShell
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $env:PATH = "$PWD\.devcontainer;$env:PATH"
-          # Bare `dc` must resolve to dc.cmd through PATHEXT — the assumption the
-          # single-Windows-file design rests on.
-          if ((Get-Command dc).Source -notlike '*dc.cmd') { throw "resolved to $((Get-Command dc).Source)" }
+          # The two Windows shims self-select: PowerShell must pick dc.ps1, which
+          # passes arguments losslessly, while CMD gets dc.cmd (it cannot execute
+          # a .ps1 at all). If this ever flips to dc.cmd, PowerShell users
+          # silently lose any argument containing an unquoted &.
+          $src = (Get-Command dc).Source
+          Write-Host "bare dc resolves to: $src"
+          if ($src -notlike '*dc.ps1') { throw "expected dc.ps1, resolved to $src" }
           dc version
 
       - name: Shim fidelity (the case that broke the cmd-only design)
