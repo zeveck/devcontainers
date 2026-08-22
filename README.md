@@ -69,8 +69,6 @@ There's more `dc` can do, listed under [the `dc` command](#the-dc-command).
 
 Each agent asks you to sign in the first time you run it. Follow the prompts.
 
-From here you'd normally copy the setup into a project of your own, which is the next section.
-
 ## Using it on your own projects
 
 The only thing you need is the `.devcontainer` folder. Copy it into any project:
