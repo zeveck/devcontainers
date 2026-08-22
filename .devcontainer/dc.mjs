@@ -196,18 +196,28 @@ function reportNoMatch(root) {
 
 // ── install / uninstall ─────────────────────────────────────────────────────
 
+// Windows gets BOTH shims. CMD cannot run a .ps1, and PowerShell going through
+// a .cmd loses arguments: PS does not quote a bare `a&b`, so cmd.exe splits on
+// the & and discards everything after it. Each shell needs its own entry point.
 const installPaths = (name = 'dc') => IS_WIN
   ? { payload: join(process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'), 'Programs', 'dc'),
       binDir:  join(process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'), 'Programs', 'dc'),
-      shim: `${name}.cmd` }
+      shims: [`${name}.cmd`, `${name}.ps1`] }
   : { payload: join(homedir(), '.local', 'share', 'dc'),
       binDir:  join(homedir(), '.local', 'bin'),
-      shim: name };
+      shims: [name] };
+
+/** Body for a generated shim, with the payload path baked in absolutely. */
+export function shimBody(kind, target) {
+  if (kind === 'cmd') return `@node "${target}" %*\r\n`;
+  if (kind === 'ps1') return `node "${target}" @args\r\nexit $LASTEXITCODE\r\n`;
+  return `#!/bin/sh\nexec node "${target}" "$@"\n`;
+}
 
 function cmdInstall(flags, rest) {
   const name = (rest[0] || 'dc').replace(/[^\w.-]/g, '');
   const link = flags.has('--link');
-  const { payload, binDir, shim } = installPaths(name);
+  const { payload, binDir, shims } = installPaths(name);
   mkdirSync(binDir, { recursive: true });
 
   // --link points the shim at the repo copy so edits take effect immediately.
@@ -216,15 +226,13 @@ function cmdInstall(flags, rest) {
 
   // Generated shims embed an ABSOLUTE path, so there is no symlink resolution to
   // get wrong (BSD/macOS readlink lacks -f on older releases).
-  const shimPath = join(binDir, shim);
-  if (IS_WIN) {
-    writeFileSync(shimPath, `@node "${target}" %*\r\n`);
-  } else {
-    writeFileSync(shimPath, `#!/bin/sh\nexec node "${target}" "$@"\n`);
-    chmodSync(shimPath, 0o755);
+  for (const shim of shims) {
+    const shimPath = join(binDir, shim);
+    const kind = shim.endsWith('.cmd') ? 'cmd' : shim.endsWith('.ps1') ? 'ps1' : 'sh';
+    writeFileSync(shimPath, shimBody(kind, target));
+    if (kind === 'sh') chmodSync(shimPath, 0o755);
+    console.log(`installed: ${shimPath}${link ? '  (linked to repo)' : ''}`);
   }
-
-  console.log(`installed: ${shimPath}${link ? '  (linked to repo)' : ''}`);
 
   const onPath = (process.env.PATH || '').split(IS_WIN ? ';' : ':')
     .some((p) => normalizeLocalFolder(p) === normalizeLocalFolder(binDir));
@@ -254,11 +262,14 @@ function cmdInstall(flags, rest) {
 
 function cmdUninstall(_flags, rest) {
   const name = (rest[0] || 'dc').replace(/[^\w.-]/g, '');
-  const { payload, binDir, shim } = installPaths(name);
+  const { payload, binDir, shims } = installPaths(name);
 
-  const shimPath = join(binDir, shim);
-  if (existsSync(shimPath)) { rmSync(shimPath, { force: true }); console.log(`removed: ${shimPath}`); }
-  else console.log(`not installed: ${shimPath}`);
+  let any = false;
+  for (const shim of shims) {
+    const shimPath = join(binDir, shim);
+    if (existsSync(shimPath)) { rmSync(shimPath, { force: true }); console.log(`removed: ${shimPath}`); any = true; }
+  }
+  if (!any) console.log(`not installed: ${join(binDir, shims[0])}`);
 
   // Only drop the shared payload once no remaining shim references it — installing
   // under a second name (dc install dcx) must not be broken by removing the first.

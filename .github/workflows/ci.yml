@@ -45,30 +45,55 @@ jobs:
           if ((Get-Command dc).Source -notlike '*dc.cmd') { throw "resolved to $((Get-Command dc).Source)" }
           dc version
 
-      - name: Argument fidelity through the cmd shim
+      - name: Shim fidelity (the case that broke the cmd-only design)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          # cmd.exe re-parses the command line before node sees it -- the one layer
-          # that cannot be tested from Linux. Exercise it with a standalone shim of
-          # the same shape, so this checks argument passing rather than dc's Docker
-          # preflight (these runners have no usable Linux-container support).
+          # A bare `a&b` is the killer: PowerShell does not quote it, so cmd.exe
+          # treats & as a command separator and silently drops everything after
+          # it. That is why Windows ships both a .cmd and a .ps1.
           $dir = Join-Path $env:RUNNER_TEMP 'shimtest'
           New-Item -ItemType Directory -Force -Path $dir | Out-Null
           'console.log(JSON.stringify(process.argv.slice(2)))' | Set-Content "$dir\args.mjs"
-          '@node "%~dp0args.mjs" %*' | Set-Content "$dir\shim.cmd"
+          '@node "%~dp0args.mjs" %*'                          | Set-Content "$dir\zz.cmd"
+          "node `"`$PSScriptRoot/args.mjs`" @args`nexit `$LASTEXITCODE" | Set-Content "$dir\zz.ps1"
 
-          $got  = (& "$dir\shim.cmd" 'a b' 'a&b' 'C:\Users\x' '--flag').Trim()
           $want = '["a b","a&b","C:\\Users\\x","--flag"]'
-          Write-Host "got:  $got"
-          Write-Host "want: $want"
-          if ($got -ne $want) { throw "cmd.exe mangled arguments through the shim" }
+          $argv = @('a b', 'a&b', 'C:\Users\x', '--flag')
 
-          # Informational: embedded quotes are the known-fragile case through cmd.
-          # Recorded rather than asserted -- if this ever comes back wrong, that is
-          # the signal to add a dc.ps1 alongside dc.cmd.
-          $q = (& "$dir\shim.cmd" 'say "hi"' '').Trim()
-          Write-Host "embedded quotes / empty arg: $q"
+          # 1. The .ps1 must be lossless.
+          $ps1 = (& "$dir\zz.ps1" @argv | Out-String).Trim()
+          Write-Host "ps1: $ps1"
+          if ($ps1 -ne $want) { throw "dc.ps1 lost arguments: $ps1" }
+
+          # 2. What a bare name on PATH resolves to, and whether THAT is lossless.
+          #    This is what a user actually types, so assert the behaviour rather
+          #    than assuming which extension wins.
+          $env:PATH = "$dir;$env:PATH"
+          Write-Host "bare name resolves to: $((Get-Command zz).Source)"
+          $bare = (zz @argv | Out-String).Trim()
+          Write-Host "bare: $bare"
+          if ($bare -ne $want) { throw "bare `zz` lost arguments: $bare" }
+
+          # 3. Record cmd's own limitation. Not asserted: a batch file cannot
+          #    recover arguments cmd.exe already split, and quoting & is normal
+          #    cmd semantics for anyone invoking it directly.
+          $cmd = (& "$dir\zz.cmd" @argv 2>&1 | Out-String).Trim()
+          Write-Host "cmd (known-lossy on bare &): $cmd"
+
+      - name: Exit codes propagate through the ps1 shim
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # Without an explicit `exit $LASTEXITCODE` a PowerShell shim always
+          # reports success, hiding every failure from callers and CI.
+          $dir = Join-Path $env:RUNNER_TEMP 'exittest'
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          'process.exit(42)' | Set-Content "$dir\fail.mjs"
+          "node `"`$PSScriptRoot/fail.mjs`" @args`nexit `$LASTEXITCODE" | Set-Content "$dir\f.ps1"
+          & "$dir\f.ps1"
+          if ($LASTEXITCODE -ne 42) { throw "expected 42, got $LASTEXITCODE" }
+          Write-Host "exit code propagated: $LASTEXITCODE"
 
       - name: Install / uninstall round-trip
         run: |
