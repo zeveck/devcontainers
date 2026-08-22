@@ -146,13 +146,7 @@ The whole configuration is a handful of files in `.devcontainer/`:
 
 To add or remove software, edit `setup.sh` and rebuild the container.
 
-If your network blocks npmjs.org, set `NPM_REGISTRY` before starting the container and it will be used for every install:
-
-```bash
-export NPM_REGISTRY=https://your-registry.example.com/api/npm/npm-repos/
-```
-
-You can also write it straight into `devcontainer.json`:
+If your network blocks npmjs.org, point `NPM_REGISTRY` somewhere else in `devcontainer.json` and setup will use it for every install:
 
 ```json
 "containerEnv": { "NPM_REGISTRY": "https://your-registry.example.com/api/npm/npm-repos/" }
