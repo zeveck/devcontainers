@@ -6,7 +6,6 @@ It all runs locally, on your own hardware. The difference is that the agents and
 
 ## Contents
 
-- [Why you'd want this](#why-youd-want-this)
 - [What's inside](#whats-inside)
 - [Getting started](#getting-started)
 - [Using it on your own projects](#using-it-on-your-own-projects)
@@ -15,14 +14,6 @@ It all runs locally, on your own hardware. The difference is that the agents and
 - [Letting an agent use a browser](#letting-an-agent-use-a-browser)
 - [Changing how it's set up](#changing-how-its-set-up)
 - [Add-ons](#add-ons)
-
-## Why you'd want this
-
-The main reason is that you can let an agent off the leash. It runs inside the container, where it can reach your project and the internet but not the rest of your computer. If you've been reluctant to let one work unsupervised, this is a reasonable place to try.
-
-The second reason is that you stop setting things up. Copy one folder into a project and you get the same tools every time, on every machine, instead of installing a CLI here and forgetting it there.
-
-Having all three agents together turns out to be useful too. Ask the same question in three terminals when you want a second opinion, or when one of them is down. And because a browser is installed, an agent can open the page it just changed and actually look at it rather than guessing.
 
 ## What's inside
 
