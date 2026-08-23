@@ -10,7 +10,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, copyFileSync, writeFileSync, rmSync, chmodSync, readdirSync, readFileSync } from 'node:fs';
-import { dirname, join, resolve, parse as parsePath } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { homedir, platform } from 'node:os';
 
@@ -80,9 +80,6 @@ export function buildExecArgs(root, argv, { login = true, env = {} } = {}) {
   return [...base, 'bash', '-lc', `${cmd} "$@"`, cmd, ...rest];
 }
 
-/** Split dc's own flags from positional args. Only used for dc's own commands —
- *  forwarding commands (exec, claude, ...) pass their argv through untouched so
- *  user flags keep their original order and meaning. */
 /**
  * Message for a failed prerequisite, or null if everything needed is present.
  * Pure so the wording is unit-tested; the probing lives in preflight() below.
@@ -120,18 +117,52 @@ export function parseArgs(argv) {
 // CLI runs on our behalf -- noise in the middle of every `dc claude`.
 const CHILD_ENV = { ...process.env, DOCKER_CLI_HINTS: 'false' };
 
-const run = (cmd, args, opts = {}) =>
-  spawnSync(cmd, args, { stdio: 'inherit', shell: IS_WIN, env: CHILD_ENV, ...opts });
+/**
+ * Quote one argument for a cmd.exe command line.
+ *
+ * Never rely on Node's shell:true here: it joins arguments UNQUOTED, so a space
+ * splits an argument in two, and cmd.exe interprets a bare | or & as its own
+ * operator. That silently dropped every multi-word argument on Windows -- the
+ * login-shell wrapper, prompts passed to `dc claude`, paths with spaces, and
+ * the tab-separated docker --format string.
+ *
+ * Standard MSVCRT rules: backslashes double only when they precede a quote;
+ * embedded quotes become backslash-quote. Args with cmd metacharacters are
+ * quoted too -- inside double quotes cmd leaves them alone.
+ */
+export function winQuote(a) {
+  a = String(a);
+  if (a === '') return '""';
+  if (!/[\s"&|<>^%();=,]/.test(a)) return a;
+  let out = '"', bs = 0;
+  for (const ch of a) {
+    if (ch === '\\') { bs++; continue; }
+    if (ch === '"') { out += '\\'.repeat(bs * 2 + 1) + '"'; bs = 0; continue; }
+    out += '\\'.repeat(bs) + ch; bs = 0;
+  }
+  return out + '\\'.repeat(bs * 2) + '"';
+}
 
-const capture = (cmd, args) =>
-  spawnSync(cmd, args, { encoding: 'utf8', shell: IS_WIN, env: CHILD_ENV });
+/**
+ * Spawn a child with arguments passed intact.
+ *
+ * Tries a direct (no-shell) spawn first, which is exact on every OS. On Windows
+ * that fails for .cmd shims (npm installs devcontainer/npx as .cmd, and Node
+ * refuses to exec those without a shell), so fall back to cmd.exe with a
+ * command line we quote ourselves via winQuote.
+ */
+export function spawnSmart(cmd, args, opts = {}) {
+  let r = spawnSync(cmd, args, { ...opts, env: CHILD_ENV });
+  if (IS_WIN && r.error) {
+    const line = '"' + [cmd, ...args].map(winQuote).join(' ') + '"';
+    r = spawnSync('cmd.exe', ['/d', '/s', '/c', line],
+      { ...opts, env: CHILD_ENV, windowsVerbatimArguments: true });
+  }
+  return r;
+}
 
-// For invoking a real executable (powershell/pwsh) with a script argument.
-// Never goes through a shell: with shell:true Node passes args unquoted, so
-// cmd.exe interprets any | in the script as its own pipe and truncates it --
-// which is how the uninstall PATH cleanup silently never ran.
-const captureExe = (cmd, args) =>
-  spawnSync(cmd, args, { encoding: 'utf8', env: CHILD_ENV });
+const run = (cmd, args, opts = {}) => spawnSmart(cmd, args, { stdio: 'inherit', ...opts });
+const capture = (cmd, args) => spawnSmart(cmd, args, { encoding: 'utf8' });
 
 function has(cmd) {
   const r = capture(IS_WIN ? 'where' : 'which', [cmd]);
@@ -251,7 +282,7 @@ function cmdInstall(flags, rest) {
       `$d='${binDir}';` +
       `$u=[Environment]::GetEnvironmentVariable('Path','User');` +
       `if(($u -split ';') -notcontains $d){[Environment]::SetEnvironmentVariable('Path',($u.TrimEnd(';')+';'+$d),'User');Write-Output 'added'}`;
-    const r = captureExe(ps, ['-NoProfile', '-Command', script]);
+    const r = capture(ps, ['-NoProfile', '-Command', script]);
     if ((r.stdout || '').includes('added')) {
       console.log(`added to your user PATH: ${binDir}`);
       console.log('open a NEW terminal for it to take effect.');
@@ -301,7 +332,7 @@ function cmdUninstall(_flags, rest) {
       `$u=[Environment]::GetEnvironmentVariable('Path','User');` +
       `$n=(($u -split ';') | Where-Object { $_ -and $_ -ne $d }) -join ';';` +
       `if($n -ne $u){[Environment]::SetEnvironmentVariable('Path',$n,'User');Write-Output 'removed'}`;
-    const r = captureExe(ps, ['-NoProfile', '-Command', script]);
+    const r = capture(ps, ['-NoProfile', '-Command', script]);
     if ((r.stdout || '').includes('removed')) console.log('removed the PATH entry too.');
     else if (r.stderr) console.error(`warning: could not remove the PATH entry: ${r.stderr.trim().split('\n')[0]}`);
   }
@@ -362,8 +393,8 @@ function main(argv) {
     console.error(`dc: Node 18+ required (found ${process.versions.node}).`);
     return 1;
   }
-  if (!cmd || cmd === 'help' || flags.has('--help')) { console.log(HELP); return 0; }
-  if (cmd === 'version' || flags.has('--version')) { console.log('dc 1.0.0'); return 0; }
+  if (!cmd || cmd === 'help' || cmd === '--help' || cmd === '-h' || flags.has('--help')) { console.log(HELP); return 0; }
+  if (cmd === 'version' || cmd === '--version' || flags.has('--version')) { console.log('dc 1.0.0'); return 0; }
   if (cmd === 'install') return cmdInstall(flags, rest);
   if (cmd === 'uninstall') return cmdUninstall(flags, rest);
   if (cmd === 'doctor') return cmdDoctor();

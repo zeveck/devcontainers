@@ -36,8 +36,8 @@ done
 if [ "$GH" -eq 0 ] && [ "$GLAB" -eq 0 ]; then
   remote="$(git remote get-url origin 2>/dev/null || true)"
   case "$remote" in
-    *github.com*) GH=1;   echo "→ github.com remote detected; authenticating gh" ;;
-    *gitlab*)     GLAB=1; echo "→ gitlab remote detected; authenticating glab" ;;
+    *github.com*) GH=1;   echo "→ github.com remote detected; using gh" ;;
+    *gitlab*)     GLAB=1; echo "→ gitlab remote detected; using glab" ;;
     "")  echo "auth: no git remote here. Pass --gh, --glab, or --both." >&2; exit 1 ;;
     *)   echo "auth: cannot tell which host '$remote' is." >&2
          echo "      Pass --gh, --glab, or --both (and --gh-host/--glab-host if self-managed)." >&2
@@ -56,7 +56,7 @@ read_token() {
   # Try to open it for real.
   if [ -t 0 ]; then
     read -rs tok
-  elif exec 3</dev/tty 2>/dev/null; then
+  elif { exec 3</dev/tty; } 2>/dev/null; then
     read -rs tok <&3 || true
     exec 3<&-
   else

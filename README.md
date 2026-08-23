@@ -28,7 +28,7 @@ There are two ways in, and they give you the same container. Use VS Code if you 
 
 Either way you need two things:
 
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/), and it has to actually be running.
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (on Linux, plain Docker works too), and it has to actually be running.
 - The `.devcontainer` folder in your project. Clone this repo or [download it as a ZIP](https://github.com/zeveck/devcontainers/archive/refs/heads/main.zip), then copy the `.devcontainer` folder into your project folder.
 
 ### With VS Code
@@ -106,7 +106,7 @@ dc doctor      check your setup
 
 When something won't start, run `dc doctor` first. It checks Docker, Node, and your project, and tells you which one is the problem.
 
-One thing to watch for on macOS and Linux: they already ship a small calculator program called `dc`, and this will hide it. If you use it, install under a different name with `dc install <name>`. To remove everything, run `dc uninstall`.
+One thing to watch for on macOS and Linux: they already ship a small calculator program called `dc`, and this will hide it. If you use it, install under a different name with `dc install <name>`. To remove everything, run `dc uninstall` (with the name, if you installed under one).
 
 ## Signing in to GitHub and GitLab
 

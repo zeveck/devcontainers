@@ -4,7 +4,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { join, resolve } from 'node:path';
-import { findProjectRoot, normalizeLocalFolder, buildExecArgs, parseArgs, preflightError, terminalEnv } from '../.devcontainer/dc.mjs';
+import { tmpdir } from 'node:os';
+import { writeFileSync } from 'node:fs';
+import { findProjectRoot, normalizeLocalFolder, buildExecArgs, parseArgs, preflightError, terminalEnv, winQuote, spawnSmart } from '../.devcontainer/dc.mjs';
 
 test('normalizeLocalFolder: windows drive-letter case and slashes', () => {
   const a = normalizeLocalFolder('C:\\Users\\rich\\proj', 'win32');
@@ -77,4 +79,42 @@ test('preflightError: installed but stopped is a different message', () => {
 
 test('preflightError: null when everything is present', () => {
   assert.equal(preflightError(true, true, 'linux'), null);
+});
+
+test('winQuote: plain args pass through unquoted', () => {
+  assert.equal(winQuote('abc'), 'abc');
+  assert.equal(winQuote('C:\\Users\\x'), 'C:\\Users\\x');
+});
+
+test('winQuote: spaces, metacharacters, quotes, empties', () => {
+  assert.equal(winQuote('a b'), '"a b"');
+  assert.equal(winQuote('a&b'), '"a&b"');
+  assert.equal(winQuote('claude "$@"'), '"claude \\"$@\\""');
+  assert.equal(winQuote(''), '""');
+  // trailing backslash inside quotes must double, or it escapes the closing quote
+  assert.equal(winQuote('a b\\'), '"a b\\\\"');
+});
+
+test('spawnSmart: multi-word and metachar args arrive intact', (t) => {
+  // Direct spawn path (every OS). On Windows CI this also exercises the
+  // cmd.exe fallback below.
+  const echo = join(tmpdir(), `dcargs-${process.pid}.mjs`);
+  writeFileSync(echo, 'console.log(JSON.stringify(process.argv.slice(2)))');
+  const argv = ['a b', 'a&b', 'C:\\Users\\x', 'claude "$@"', '--flag', ''];
+  const r = spawnSmart(process.execPath, [echo, ...argv], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(JSON.parse(r.stdout), argv);
+});
+
+test('spawnSmart: .cmd shim on Windows keeps args intact', (t) => {
+  if (process.platform !== 'win32') return t.skip('windows only');
+  const dir = tmpdir();
+  const echo = join(dir, 'dcargs2.mjs');
+  writeFileSync(echo, 'console.log(JSON.stringify(process.argv.slice(2)))');
+  const shim = join(dir, 'dcargs2.cmd');
+  writeFileSync(shim, `@node "${echo}" %*\r\n`);
+  const argv = ['a b', 'C:\\Users\\x', 'claude "$@"', '--flag'];
+  const r = spawnSmart(shim, argv, { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(JSON.parse(r.stdout), argv);
 });
