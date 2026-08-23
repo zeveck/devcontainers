@@ -126,6 +126,13 @@ const run = (cmd, args, opts = {}) =>
 const capture = (cmd, args) =>
   spawnSync(cmd, args, { encoding: 'utf8', shell: IS_WIN, env: CHILD_ENV });
 
+// For invoking a real executable (powershell/pwsh) with a script argument.
+// Never goes through a shell: with shell:true Node passes args unquoted, so
+// cmd.exe interprets any | in the script as its own pipe and truncates it --
+// which is how the uninstall PATH cleanup silently never ran.
+const captureExe = (cmd, args) =>
+  spawnSync(cmd, args, { encoding: 'utf8', env: CHILD_ENV });
+
 function has(cmd) {
   const r = capture(IS_WIN ? 'where' : 'which', [cmd]);
   return r.status === 0;
@@ -244,7 +251,7 @@ function cmdInstall(flags, rest) {
       `$d='${binDir}';` +
       `$u=[Environment]::GetEnvironmentVariable('Path','User');` +
       `if(($u -split ';') -notcontains $d){[Environment]::SetEnvironmentVariable('Path',($u.TrimEnd(';')+';'+$d),'User');Write-Output 'added'}`;
-    const r = capture(ps, ['-NoProfile', '-Command', script]);
+    const r = captureExe(ps, ['-NoProfile', '-Command', script]);
     if ((r.stdout || '').includes('added')) {
       console.log(`added to your user PATH: ${binDir}`);
       console.log('open a NEW terminal for it to take effect.');
@@ -294,8 +301,9 @@ function cmdUninstall(_flags, rest) {
       `$u=[Environment]::GetEnvironmentVariable('Path','User');` +
       `$n=(($u -split ';') | Where-Object { $_ -and $_ -ne $d }) -join ';';` +
       `if($n -ne $u){[Environment]::SetEnvironmentVariable('Path',$n,'User');Write-Output 'removed'}`;
-    const r = capture(ps, ['-NoProfile', '-Command', script]);
+    const r = captureExe(ps, ['-NoProfile', '-Command', script]);
     if ((r.stdout || '').includes('removed')) console.log('removed the PATH entry too.');
+    else if (r.stderr) console.error(`warning: could not remove the PATH entry: ${r.stderr.trim().split('\n')[0]}`);
   }
   return 0;
 }
