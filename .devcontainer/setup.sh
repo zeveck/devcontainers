@@ -46,7 +46,11 @@ fi
 
 # Put the auth helper on PATH so `auth` works from anywhere in the container.
 # Symlinked rather than copied so edits to the repo copy take effect immediately.
+# chmod first: exec bits are committed, but common transports strip them --
+# raw-file downloads, some ZIP extractors, and any Windows filesystem hop --
+# so restore them rather than trust the copy arrived intact.
 echo "🔑 Installing auth helper..."
+chmod +x .devcontainer/auth .devcontainer/dc 2>/dev/null || true
 sudo ln -sf "$(pwd)/.devcontainer/auth" /usr/local/bin/auth
 
 # Install Playwright CLI globally.
