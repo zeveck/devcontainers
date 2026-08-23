@@ -120,3 +120,18 @@ jobs:
         run: |
           node ./.devcontainer/dc.mjs install dctest
           node ./.devcontainer/dc.mjs uninstall dctest
+
+      # Windows only: uninstalling the last install must also remove the PATH
+      # entry install registered, leaving the user PATH as it was found.
+      - name: Uninstall removes the Windows PATH entry
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          node ./.devcontainer/dc.mjs install dcpath
+          $dir = Join-Path $env:LOCALAPPDATA 'Programs\dc'
+          $u = [Environment]::GetEnvironmentVariable('Path','User')
+          if (($u -split ';') -notcontains $dir) { throw "install did not register $dir" }
+          node ./.devcontainer/dc.mjs uninstall dcpath
+          $u = [Environment]::GetEnvironmentVariable('Path','User')
+          if (($u -split ';') -contains $dir) { throw "uninstall left $dir on the user PATH" }
+          Write-Host "PATH entry added and removed cleanly"

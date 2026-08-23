@@ -281,7 +281,19 @@ function cmdUninstall(_flags, rest) {
     if (stillUsed) console.log(`kept: ${payload} (still used by another install)`);
     else { rmSync(payload, { recursive: true, force: true }); console.log(`removed: ${payload}`); }
   }
-  if (IS_WIN) console.log('note: your user PATH entry was left in place.');
+  // If nothing of ours is left in the bin dir, remove the PATH entry install
+  // added. Only ever the exact directory we created, so nothing else can break.
+  if (IS_WIN && existsSync(binDir) && readdirSync(binDir).length === 0) {
+    rmSync(binDir, { recursive: true, force: true });
+    const ps = has('pwsh') ? 'pwsh' : 'powershell';
+    const script =
+      `$d='${binDir}';` +
+      `$u=[Environment]::GetEnvironmentVariable('Path','User');` +
+      `$n=(($u -split ';') | Where-Object { $_ -and $_ -ne $d }) -join ';';` +
+      `if($n -ne $u){[Environment]::SetEnvironmentVariable('Path',$n,'User');Write-Output 'removed'}`;
+    const r = capture(ps, ['-NoProfile', '-Command', script]);
+    if ((r.stdout || '').includes('removed')) console.log('removed the PATH entry too.');
+  }
   return 0;
 }
 
