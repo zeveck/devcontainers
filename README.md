@@ -139,8 +139,6 @@ You'll get the file, and a screenshot of it rendered in a real browser.
 
 It's more useful on real work: point an agent at your dev server and ask it to walk through signup, or to check whether a page still looks right on a phone-sized screen. Run `playwright-cli --help` for everything it can do.
 
-The browser's settings (headless mode, screenshot output folder, and so on) live in `.playwright/cli.config.json` — but since that file is rewritten on every build, change them in the part of `setup.sh` that writes it.
-
 ## Changing how it's set up
 
 The whole configuration is a handful of files in `.devcontainer/`:
