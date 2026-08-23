@@ -283,7 +283,10 @@ function cmdUninstall(_flags, rest) {
   }
   // If nothing of ours is left in the bin dir, remove the PATH entry install
   // added. Only ever the exact directory we created, so nothing else can break.
-  if (IS_WIN && existsSync(binDir) && readdirSync(binDir).length === 0) {
+  // On Windows payload and binDir are the SAME folder, so by this point the
+  // payload removal above has usually deleted it -- a missing dir means the
+  // same thing as an empty one: the last install is gone.
+  if (IS_WIN && (!existsSync(binDir) || readdirSync(binDir).length === 0)) {
     rmSync(binDir, { recursive: true, force: true });
     const ps = has('pwsh') ? 'pwsh' : 'powershell';
     const script =
