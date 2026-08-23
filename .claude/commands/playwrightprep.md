@@ -1,1 +1,0 @@
-Please examine the current codebase in preparation for testing using Playwright MCP. Ultrathink about how best to test key features and recent changes, if any.

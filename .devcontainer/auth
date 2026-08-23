@@ -1,0 +1,145 @@
+#!/usr/bin/env bash
+# auth — authenticate gh and/or glab inside this container with a Personal
+# Access Token.
+#
+# A PAT rather than `gh auth login`'s browser flow on purpose: GitHub issues one
+# OAuth token per app per user, so every `gh auth login` invalidates the token in
+# every other container. PATs are independent and any number can be live at once.
+#
+#   auth            infer the target from this repo's git remote
+#   auth --gh       GitHub only
+#   auth --glab     GitLab only
+#   auth --both     both
+#   auth --force    re-authenticate even if already signed in
+#   auth --logout   sign out instead (local only; does not revoke the token,
+#                   so other containers using it are unaffected)
+set -euo pipefail
+
+GH=0; GLAB=0; FORCE=0; LOGOUT=0; GH_HOST=github.com; GLAB_HOST=gitlab.com
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --gh)    GH=1 ;;
+    --glab)  GLAB=1 ;;
+    --both)  GH=1; GLAB=1 ;;
+    --force)  FORCE=1 ;;
+    --logout) LOGOUT=1 ;;
+    --gh-host)   GH_HOST="${2:?--gh-host needs a hostname}"; shift ;;
+    --glab-host) GLAB_HOST="${2:?--glab-host needs a hostname}"; shift ;;
+    -h|--help) awk 'NR>1 && /^#/ {sub(/^# ?/,""); print; next} NR>1 {exit}' "$0"; exit 0 ;;
+    *) echo "auth: unknown option '$1' (try --help)" >&2; exit 1 ;;
+  esac
+  shift
+done
+
+# No target given: infer from the remote, since most repos only need one.
+if [ "$GH" -eq 0 ] && [ "$GLAB" -eq 0 ]; then
+  remote="$(git remote get-url origin 2>/dev/null || true)"
+  case "$remote" in
+    *github.com*) GH=1;   echo "→ github.com remote detected; using gh" ;;
+    *gitlab*)     GLAB=1; echo "→ gitlab remote detected; using glab" ;;
+    "")  echo "auth: no git remote here. Pass --gh, --glab, or --both." >&2; exit 1 ;;
+    *)   echo "auth: cannot tell which host '$remote' is." >&2
+         echo "      Pass --gh, --glab, or --both (and --gh-host/--glab-host if self-managed)." >&2
+         exit 1 ;;
+  esac
+  echo
+fi
+
+# Read a token without echoing it, from the terminal rather than stdin so this
+# still works when the script itself is piped.
+read_token() {
+  local tok=""
+  printf 'Paste token (input hidden), or Enter to skip: ' >&2
+  # `[ -r /dev/tty ]` is not a usable test: the node exists and is world-readable
+  # even when this process has no controlling terminal, and only the open fails.
+  # Try to open it for real.
+  if [ -t 0 ]; then
+    read -rs tok
+  elif { exec 3</dev/tty; } 2>/dev/null; then
+    read -rs tok <&3 || true
+    exec 3<&-
+  else
+    printf '\n' >&2
+    echo "auth: needs an interactive terminal to read a token." >&2
+    return 1
+  fi
+  printf '\n' >&2
+  printf '%s' "$tok" | tr -d '[:space:]'
+}
+
+persist_tip() {
+  echo
+  echo "  Note: nothing mounts credentials, so a container rebuild loses this."
+  echo "  Re-run \`auth\` after a rebuild."
+}
+
+# Sign out. Both CLIs only clear local state -- gh documents that it "does not
+# invalidate authentication tokens" -- so this cannot disturb another container
+# sharing the same token.
+if [ "$LOGOUT" -eq 1 ]; then
+  if [ "$GH" -eq 1 ]; then
+    # `gh auth status` exits 0 whenever a token is STORED, valid or not, which is
+    # exactly the right question here (unlike for the sign-in check above).
+    if gh auth status --hostname "$GH_HOST" >/dev/null 2>&1; then
+      gh auth logout --hostname "$GH_HOST" >/dev/null 2>&1 || true
+      echo "signed out of $GH_HOST (token not revoked; other containers keep working)"
+    else
+      echo "not signed in to $GH_HOST"
+    fi
+  fi
+  if [ "$GLAB" -eq 1 ]; then
+    # glab auth logout exits 0 even with nothing stored, so do not claim a
+    # sign-out happened -- just state what was done.
+    glab auth logout --hostname "$GLAB_HOST" >/dev/null 2>&1 || true
+    echo "cleared any stored credentials for $GLAB_HOST (token not revoked)"
+  fi
+  exit 0
+fi
+
+if [ "$GH" -eq 1 ]; then
+  echo "── GitHub ──────────────────────────────────────────────────"
+  # `gh auth status` exits 0 even when it reports the stored token as invalid,
+  # so it cannot distinguish "signed in" from "holding a revoked token" -- and a
+  # revoked token is the main reason to run this. Make a real API call instead.
+  if [ "$FORCE" -eq 0 ] && GH_HOST="$GH_HOST" gh api user >/dev/null 2>&1; then
+    echo "already authenticated to $GH_HOST (use --force to replace)"
+  else
+    echo "Create a token:"
+    echo "  https://github.com/settings/tokens/new?scopes=repo,workflow,read:org,gist&description=devcontainer"
+    echo "Scopes: repo, workflow, read:org, gist"
+    echo
+    tok="$(read_token)" || exit 1
+    if [ -z "$tok" ]; then
+      echo "skipped."
+    else
+      case "$tok" in ghp_*|github_pat_*|gho_*) ;; *) echo "warning: does not look like a GitHub token; trying anyway." ;; esac
+      printf '%s' "$tok" | gh auth login --hostname "$GH_HOST" --with-token
+      echo "✅ $(gh auth status --hostname "$GH_HOST" 2>&1 | grep -o 'account [^ ]*' | head -1)"
+      persist_tip
+    fi
+  fi
+  echo
+fi
+
+if [ "$GLAB" -eq 1 ]; then
+  echo "── GitLab ──────────────────────────────────────────────────"
+  if [ "$FORCE" -eq 0 ] && GITLAB_HOST="$GLAB_HOST" glab api user >/dev/null 2>&1; then
+    echo "already authenticated to $GLAB_HOST (use --force to replace)"
+  else
+    echo "Create a token:"
+    echo "  https://$GLAB_HOST/-/user_settings/personal_access_tokens"
+    echo "Scopes: api, read_repository, write_repository"
+    echo
+    tok="$(read_token)" || exit 1
+    if [ -z "$tok" ]; then
+      echo "skipped."
+    else
+      case "$tok" in glpat-*) ;; *) echo "warning: does not look like a GitLab token; trying anyway." ;; esac
+      printf '%s' "$tok" | glab auth login --hostname "$GLAB_HOST" --stdin
+      echo "✅ authenticated to $GLAB_HOST"
+      persist_tip
+    fi
+  fi
+  echo
+fi

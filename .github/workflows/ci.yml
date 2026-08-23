@@ -1,0 +1,137 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    # Windows is the point of this matrix: dc.cmd and the PATH-registration path
+    # cannot be exercised on Linux, so they are only ever covered here.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+
+      - name: Unit tests
+        run: node --test
+
+      - name: Shim runs (bash)
+        if: runner.os != 'Windows'
+        run: |
+          ./.devcontainer/dc version
+          ./.devcontainer/dc help > /dev/null
+
+      - name: Shim runs (cmd)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          .\.devcontainer\dc.cmd version
+          .\.devcontainer\dc.cmd help > NUL
+
+      # The README gives Windows one command, `.\.devcontainer\dc`, with no shell
+      # qualifier. Both shells must resolve the extensionless name for that to be
+      # true: PowerShell picks dc.ps1 (asserted below), CMD picks dc.cmd here.
+      - name: CMD resolves the extensionless dc
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: .\.devcontainer\dc version
+
+      - name: Bare `dc` prefers the ps1 in PowerShell
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:PATH = "$PWD\.devcontainer;$env:PATH"
+          # The two Windows shims self-select: PowerShell must pick dc.ps1, which
+          # passes arguments losslessly, while CMD gets dc.cmd (it cannot execute
+          # a .ps1 at all). If this ever flips to dc.cmd, PowerShell users
+          # silently lose any argument containing an unquoted &.
+          $src = (Get-Command dc).Source
+          Write-Host "bare dc resolves to: $src"
+          if ($src -notlike '*dc.ps1') { throw "expected dc.ps1, resolved to $src" }
+          dc version
+
+      - name: Shim fidelity (the case that broke the cmd-only design)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # A bare `a&b` is the killer: PowerShell does not quote it, so cmd.exe
+          # treats & as a command separator and silently drops everything after
+          # it. That is why Windows ships both a .cmd and a .ps1.
+          $dir = Join-Path $env:RUNNER_TEMP 'shimtest'
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          'console.log(JSON.stringify(process.argv.slice(2)))' | Set-Content "$dir\args.mjs"
+          '@node "%~dp0args.mjs" %*'                          | Set-Content "$dir\zz.cmd"
+          "node `"`$PSScriptRoot/args.mjs`" @args`nexit `$LASTEXITCODE" | Set-Content "$dir\zz.ps1"
+
+          $want = '["a b","a&b","C:\\Users\\x","--flag"]'
+          $argv = @('a b', 'a&b', 'C:\Users\x', '--flag')
+
+          # 1. The .ps1 must be lossless.
+          $ps1 = (& "$dir\zz.ps1" @argv | Out-String).Trim()
+          Write-Host "ps1: $ps1"
+          if ($ps1 -ne $want) { throw "dc.ps1 lost arguments: $ps1" }
+
+          # 2. What a bare name on PATH resolves to, and whether THAT is lossless.
+          #    This is what a user actually types, so assert the behaviour rather
+          #    than assuming which extension wins.
+          $env:PATH = "$dir;$env:PATH"
+          Write-Host "bare name resolves to: $((Get-Command zz).Source)"
+          $bare = (zz @argv | Out-String).Trim()
+          Write-Host "bare: $bare"
+          if ($bare -ne $want) { throw "bare `zz` lost arguments: $bare" }
+
+          # 3. Record cmd's own limitation. Not asserted: a batch file cannot
+          #    recover arguments cmd.exe already split, and quoting & is normal
+          #    cmd semantics for anyone invoking it directly.
+          $cmd = (& "$dir\zz.cmd" @argv 2>&1 | Out-String).Trim()
+          Write-Host "cmd (known-lossy on bare &): $cmd"
+          # That call fails by design (cmd tries to run the text after the &).
+          # GitHub's pwsh wrapper exits with whatever $LASTEXITCODE holds, so
+          # clear it or this informational line fails the whole step.
+          $global:LASTEXITCODE = 0
+          exit 0
+
+      - name: Exit codes propagate through the ps1 shim
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # Without an explicit `exit $LASTEXITCODE` a PowerShell shim always
+          # reports success, hiding every failure from callers and CI.
+          $dir = Join-Path $env:RUNNER_TEMP 'exittest'
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          'process.exit(42)' | Set-Content "$dir\fail.mjs"
+          "node `"`$PSScriptRoot/fail.mjs`" @args`nexit `$LASTEXITCODE" | Set-Content "$dir\f.ps1"
+          & "$dir\f.ps1"
+          if ($LASTEXITCODE -ne 42) { throw "expected 42, got $LASTEXITCODE" }
+          Write-Host "exit code propagated: $LASTEXITCODE"
+          # The 42 we just asserted is still in $LASTEXITCODE, and GitHub's pwsh
+          # wrapper exits with whatever it holds. Same trap as the step above.
+          $global:LASTEXITCODE = 0
+          exit 0
+
+      - name: Install / uninstall round-trip
+        run: |
+          node ./.devcontainer/dc.mjs install dctest
+          node ./.devcontainer/dc.mjs uninstall dctest
+
+      # Windows only: uninstalling the last install must also remove the PATH
+      # entry install registered, leaving the user PATH as it was found.
+      - name: Uninstall removes the Windows PATH entry
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          node ./.devcontainer/dc.mjs install dcpath
+          $dir = Join-Path $env:LOCALAPPDATA 'Programs\dc'
+          $u = [Environment]::GetEnvironmentVariable('Path','User')
+          if (($u -split ';') -notcontains $dir) { throw "install did not register $dir" }
+          node ./.devcontainer/dc.mjs uninstall dcpath
+          $u = [Environment]::GetEnvironmentVariable('Path','User')
+          if (($u -split ';') -contains $dir) { throw "uninstall left $dir on the user PATH" }
+          Write-Host "PATH entry added and removed cleanly"

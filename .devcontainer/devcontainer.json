@@ -1,10 +1,16 @@
 {
-  "name": "Claude Code Environment",
+  "name": "Agentic Dev Environment",
   "image": "mcr.microsoft.com/devcontainers/python:3.12",
   "runArgs": ["--shm-size=2g"],
   "features": {
     "ghcr.io/devcontainers/features/node:1": { "version": "24", "pnpmVersion": "none" },
     "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  // NPM_REGISTRY is read by setup.sh, a lifecycle command. containerEnv is
+  // applied at container creation so lifecycle commands definitely see it;
+  // remoteEnv's propagation to them is version-dependent.
+  "containerEnv": {
+    "NPM_REGISTRY": "${localEnv:NPM_REGISTRY}"
   },
   "postCreateCommand": "bash .devcontainer/setup.sh",
   "customizations": {
