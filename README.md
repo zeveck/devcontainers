@@ -110,7 +110,11 @@ One thing to watch for on macOS and Linux: they already ship a small calculator 
 
 ## Signing in to GitHub and GitLab
 
-Run `auth` and it will walk you through it:
+This step is optional. The container includes `gh` and `glab`, the GitHub and GitLab command-line tools, which agents can use to create pull requests, work with issues, and so on. If you don't plan on that, skip this section — and you almost certainly want one of the two, not both.
+
+The normal sign-ins work fine from inside the container: `gh auth login` shows a code to type into github.com in your browser, and you're in. The one catch is that GitHub allows a single `gh auth login` per account, so signing in from a second container quietly logs the first one out. If you only ever run one container at a time, that will never bother you.
+
+If it does bother you, the container includes `auth`, which signs in with an access token instead — one token works in any number of containers at once:
 
 ```bash
 auth            # figures out GitHub or GitLab from your project's git remote
@@ -121,13 +125,9 @@ auth --force    # replace a login you already have
 auth --logout   # sign out
 ```
 
-It sends you to the right page to create an access token, then takes the token you paste back and signs you in.
+It sends you to the right page to create the token, then takes the token you paste back and signs you in.
 
-Two quirks are worth knowing about. The first is why `auth` uses a token instead of the normal browser sign-in: GitHub allows only one `gh auth login` per account, so signing in from a second container quietly logs you out of the first. If you work in several containers they'll keep knocking each other offline. Access tokens don't behave that way, and one token works everywhere at once.
-
-The second is that rebuilding a container signs you out again, since logins aren't stored outside it. Run `auth` and carry on.
-
-Signing out with `auth --logout` only affects the container you're in. The token stays valid, so anywhere else you've used it keeps working.
+Either way, rebuilding a container signs you out, since logins aren't stored outside it. Sign in again and carry on. And `auth --logout` only affects the container you're in — the token stays valid, so anywhere else you've used it keeps working.
 
 ## Letting an agent use a browser
 
