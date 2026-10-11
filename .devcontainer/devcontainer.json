@@ -14,19 +14,18 @@
     // Keep Claude's .claude.json inside the persisted ~/.claude volume.
     "CLAUDE_CONFIG_DIR": "/home/vscode/.claude"
   },
-  // Agent sign-ins, settings, and session history live in named volumes, one
-  // set per project, so they survive "Rebuild Container". Remove them with
-  // `docker volume rm` (see README) to start fresh.
+  // Each agent's folder (history, memory, settings, plugins) lives in a named
+  // volume, one set per project, so it survives "Rebuild Container". Sign-ins
+  // do not: on-create.sh deletes the login files on every rebuild. `dc volumes`
+  // lists and removes these (see README).
   "mounts": [
     "source=agent-claude-${devcontainerId},target=/home/vscode/.claude,type=volume",
     "source=agent-codex-${devcontainerId},target=/home/vscode/.codex,type=volume",
-    "source=agent-gemini-${devcontainerId},target=/home/vscode/.gemini,type=volume",
-    "source=agent-gh-${devcontainerId},target=/home/vscode/.config/gh,type=volume"
+    "source=agent-gemini-${devcontainerId},target=/home/vscode/.gemini,type=volume"
   ],
-  // Docker creates fresh volume mount points (and a missing ~/.config) owned
-  // by root. Fix that in onCreateCommand, which finishes before VS Code
-  // starts extensions; setup.sh runs later in postCreateCommand.
-  "onCreateCommand": "for d in \"$HOME/.config\" \"$HOME/.config/gh\" \"$HOME/.claude\" \"$HOME/.codex\" \"$HOME/.gemini\"; do sudo mkdir -p \"$d\" && sudo chown \"$(id -u):$(id -g)\" \"$d\"; done",
+  // onCreateCommand finishes before VS Code starts extensions; setup.sh runs
+  // later, in postCreateCommand.
+  "onCreateCommand": "bash .devcontainer/on-create.sh",
   "postCreateCommand": "bash .devcontainer/setup.sh",
   "customizations": {
     "vscode": { "extensions": ["ms-python.python", "ms-python.pylint"] }

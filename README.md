@@ -11,7 +11,7 @@ It all runs locally, on your own hardware. The difference is that the agents and
 - [What ends up in your project](#what-ends-up-in-your-project)
 - [The `dc` command](#the-dc-command)
 - [Signing in to GitHub and GitLab](#signing-in-to-github-and-gitlab)
-- [Keeping sign-ins and history](#keeping-sign-ins-and-history)
+- [Keeping agent history across rebuilds](#keeping-agent-history-across-rebuilds)
 - [Letting an agent use a browser](#letting-an-agent-use-a-browser)
 - [Changing how it's set up](#changing-how-its-set-up)
 
@@ -94,12 +94,13 @@ Whether those belong in git is up to you. The first two are rebuilt from scratch
 Once installed you can type `dc` anywhere. It picks up whichever project you're currently sitting in.
 
 ```
-dc up          create and start the container   (--rebuild to start over)
+dc up          create and start the container   (--rebuild to start over, --fresh to also clear agent history)
 dc build       rebuild the image                (--no-cache to ignore the cache)
 dc shell       open a shell inside it
 dc claude      run Claude inside it             (also codex, gemini, pw)
 dc exec ...    run any command inside it
 dc down        stop it                          (dc rm deletes it too)
+dc volumes     saved agent history              (see below)
 dc status      show this project's container
 dc logs        show its output                  (--follow to keep watching)
 dc doctor      check your setup
@@ -128,28 +129,40 @@ auth --logout   # sign out
 
 It sends you to the right page to create the token, then takes the token you paste back and signs you in.
 
-Either way, the login survives rebuilding the container (see [Keeping sign-ins and history](#keeping-sign-ins-and-history)). And `auth --logout` only affects the container you're in — the token stays valid, so anywhere else you've used it keeps working.
+Either way, rebuilding a container signs you out, since logins aren't stored outside it. Sign in again and carry on. And `auth --logout` only affects the container you're in — the token stays valid, so anywhere else you've used it keeps working.
 
-## Keeping sign-ins and history
+## Keeping agent history across rebuilds
 
-Rebuilding a container normally throws away everything inside it. So that you don't have to sign in again and don't lose past agent sessions, each project keeps these folders in Docker volumes that outlive rebuilds:
+Rebuilding a container normally throws away everything inside it. So that your agents pick up where they left off, each project keeps the agents' own folders in Docker volumes, which outlive rebuilds:
 
-| Folder | What's in it |
+| Folder | What's kept |
 |---|---|
-| `~/.claude` | Claude Code sign-in, settings, plugins, and session history |
-| `~/.codex` | Codex CLI sign-in, settings, and sessions |
-| `~/.gemini` | Gemini CLI sign-in and settings |
-| `~/.config/gh` | `gh` sign-in |
+| `~/.claude` | Claude Code sessions (`claude --resume`), memory, settings, plugins, and prompt history |
+| `~/.codex` | Codex CLI sessions, history, and settings |
+| `~/.gemini` | Gemini CLI chats, checkpoints, and settings |
 
-The volumes belong to one project, so containers for different projects still can't see each other's history. `dc rm` and *Rebuild Container* leave them alone. The volume names end in an ID that the dev container tooling derives from the project folder's path, so moving or renaming the folder starts with fresh volumes. To start a project fresh on purpose, look up its volumes and remove them while its container is stopped:
+Sign-ins are the exception. Every rebuild deletes the agents' login files before anything starts, so after a rebuild you run `/login` in Claude (and sign in to Codex or Gemini if you use them), and everything else is as you left it. This keeps a usable login from lingering in a volume you've forgotten about. `gh` and `glab` aren't kept either, so sign in to those again too.
 
-```bash
-dc status                                          # shows the container ID
-docker inspect <container> --format '{{range .Mounts}}{{.Name}} {{end}}'
-docker volume rm <name> ...
+Each project gets its own volumes, so containers for different projects can't see each other's history. `dc` handles them for you:
+
+```
+dc volumes            list this project's saved agent data
+dc up --rebuild       rebuild and keep it
+dc up --fresh         rebuild with empty agent folders (asks first)
+dc volumes --rm       delete it and remove the container (asks first)
+dc rm                 remove the container; the data stays for the next dc up
+dc volumes --prune    delete saved data no container uses (asks first)
 ```
 
-`glab` keeps its login in `~/.config/glab-cli`, which isn't persisted, so sign in to GitLab again after a rebuild.
+*Rebuild Container* in VS Code keeps the data too, and the `dc` commands work on containers VS Code made, so use `dc up --fresh` or `dc volumes --rm` from a terminal when you want a clean slate.
+
+A few things to know:
+
+- **Moving or renaming the project folder starts fresh.** The volume names come from the folder's path, so the old ones are left behind unused. `dc volumes --prune` finds them.
+- **Docker's own cleanup deletes them.** `docker volume prune` and `docker system prune --volumes` remove volumes no container is using, which includes these whenever the container is removed. Don't run those if you want the history.
+- **Sessions are kept as written.** Anything pasted into a session, or printed during one, stays in its history. Logins are deleted, but a key you typed into a settings file yourself (such as the `env` block of Claude's `settings.json`, or `~/.gemini/.env`) is kept like any other setting.
+
+Without `dc`, the volumes are named `agent-claude-<id>`, `agent-codex-<id>`, and `agent-gemini-<id>`; `docker volume ls` lists them and `docker volume rm` deletes them once their container is removed.
 
 ## Letting an agent use a browser
 
@@ -167,6 +180,7 @@ The whole configuration is a handful of files in `.devcontainer/`:
 
 - `devcontainer.json` sets the base image, VS Code extensions, and container options
 - `setup.sh` installs the agents, the browser, and the command-line tools
+- `on-create.sh` runs first on each build: it fixes folder ownership and deletes saved agent logins
 - `auth` is the sign-in helper
 - `dc`, `dc.cmd`, `dc.ps1`, and `dc.mjs` make up the `dc` command
 
