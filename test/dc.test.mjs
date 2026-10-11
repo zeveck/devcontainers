@@ -5,10 +5,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
-import { writeFileSync, mkdtempSync, mkdirSync, chmodSync, readFileSync, existsSync } from 'node:fs';
+import { writeFileSync, mkdtempSync, mkdirSync, chmodSync, readFileSync, existsSync, realpathSync, rmSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { findProjectRoot, normalizeLocalFolder, buildExecArgs, parseArgs, preflightError, terminalEnv, winQuote, spawnSmart, AGENT_VOLUME, agentVolumesFromMounts, agentVolumesFromList } from '../.devcontainer/dc.mjs';
+import { findProjectRoot, normalizeLocalFolder, buildExecArgs, parseArgs, preflightError, terminalEnv, winQuote, spawnSmart, AGENT_VOLUME, agentVolumesFromMounts, agentVolumesFromList, devcontainerId, idLabelsFor, agentVolumeNames } from '../.devcontainer/dc.mjs';
 
 test('normalizeLocalFolder: windows drive-letter case and slashes', () => {
   const a = normalizeLocalFolder('C:\\Users\\rich\\proj', 'win32');
@@ -123,11 +123,23 @@ test('spawnSmart: .cmd shim on Windows keeps args intact', (t) => {
 
 // ── agent volumes ───────────────────────────────────────────────────────────
 
-const ID = 'a'.repeat(20) + '0123456789bcdefghijklmnopqrstuv';
+const ID = '0qbup1i4f2ig7p6igu8b63pn9mil7frd06bh2glbg2t8vn29r9ca';
+
+test('devcontainerId: matches @devcontainers/cli for POSIX and Windows paths', () => {
+  // Expected values come from the CLI's own function (0.80.1), run on these labels.
+  assert.equal(devcontainerId(idLabelsFor('/home/me/proj', 'linux')), ID);
+  assert.equal(devcontainerId(idLabelsFor('C:\\Users\\me\\proj', 'win32')),
+    '0nvkm11imhpc6ilbh3or1789o0ffgpu816nrnh2bal15devq0kmg');
+  assert.deepEqual(idLabelsFor('C:\\Users\\me\\proj', 'win32'), {
+    'devcontainer.local_folder': 'c:\\Users\\me\\proj',
+    'devcontainer.config_file': 'c:\\Users\\me\\proj\\.devcontainer\\devcontainer.json',
+  });
+});
 
 test('AGENT_VOLUME: matches only the volumes devcontainer.json declares', () => {
-  for (const tool of ['claude', 'codex', 'gemini']) assert.ok(AGENT_VOLUME.test(`agent-${tool}-${ID}`));
-  for (const name of ['agent-claude-', 'agent-gh-abc', 'my-agent-claude-abc', 'agent-claude-ABC', 'postgres-data', `agent-claude-${ID}/x`]) {
+  for (const name of agentVolumeNames(ID)) assert.ok(AGENT_VOLUME.test(name), name);
+  for (const name of ['agent-claude-data', 'agent-codex-cache', `agent-gh-${ID}`, `my-agent-claude-${ID}`,
+    `agent-claude-${ID.toUpperCase()}`, `agent-claude-${ID}x`, `agent-claude-${'w'.repeat(52)}`, 'postgres-data']) {
     assert.ok(!AGENT_VOLUME.test(name), name);
   }
 });
@@ -153,26 +165,33 @@ test('agentVolumesFromList: filters a docker volume ls listing', () => {
 // on Windows; the pure helpers above cover the matching logic everywhere.
 
 const DC = fileURLToPath(new URL('../.devcontainer/dc.mjs', import.meta.url));
-const OTHER = 'b'.repeat(52);
+const OTHER = '1'.repeat(52);
 
-function fakeDocker({ container = true } = {}) {
-  const dir = mkdtempSync(join(tmpdir(), 'dc-fake-'));
+function fakeDocker(t, { container = true } = {}) {
+  // realpath: on macOS tmpdir() is behind a symlink, and dc sees the real path.
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'dc-fake-')));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
   const bin = join(dir, 'bin'); mkdirSync(bin);
   const proj = join(dir, 'proj'); mkdirSync(join(proj, '.devcontainer'), { recursive: true });
   writeFileSync(join(proj, '.devcontainer', 'devcontainer.json'), '{}');
+  const id = devcontainerId(idLabelsFor(proj));
   const log = join(dir, 'calls.log');
   const mounts = JSON.stringify([
     { Type: 'bind', Source: proj, Destination: '/workspaces/proj' },
-    { Type: 'volume', Name: `agent-claude-${ID}` },
-    { Type: 'volume', Name: `agent-codex-${ID}` },
+    { Type: 'volume', Name: `agent-claude-${id}` },
+    { Type: 'volume', Name: `agent-codex-${id}` },
   ]);
+  // Without a container, this project's volumes are unused, as after `dc rm`.
+  const all = [`agent-claude-${id}`, `agent-codex-${id}`, `agent-gemini-${OTHER}`, 'postgres-data'];
+  const dangling = container ? [`agent-gemini-${OTHER}`] : [`agent-claude-${id}`, `agent-codex-${id}`, `agent-gemini-${OTHER}`];
   writeFileSync(join(bin, 'docker'), `#!/bin/sh
 echo "docker $*" >> '${log}'
-case "$1 $2" in
-  "info "*) exit 0 ;;
-  "ps -a") ${container ? `printf 'c1\trunning\t%s\n' '${proj}'` : 'true'} ;;
-  "inspect --format") echo '${mounts}' ;;
-  "volume ls") printf 'agent-gemini-${OTHER}\npostgres-data\n' ;;
+case "$*" in
+  "info") exit 0 ;;
+  "ps -a "*) ${container ? `printf 'c1\\trunning\\t%s\\n' '${proj}'` : 'true'} ;;
+  "inspect --format "*) echo '${mounts}' ;;
+  "volume ls -q --filter dangling=true") printf '%s\\n' ${dangling.join(' ')} ;;
+  "volume ls -q") printf '%s\\n' ${all.join(' ')} ;;
 esac
 exit 0
 `);
@@ -182,26 +201,28 @@ exit 0
     cwd: proj, encoding: 'utf8', input: '',
     env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
   });
-  const calls = () => (existsSync(log) ? readFileSync(log, 'utf8') : '').split('\n')
-    .filter((l) => l && !/^docker (info|ps|inspect|volume ls)/.test(l));
-  return { runDc, calls, proj };
+  const raw = () => (existsSync(log) ? readFileSync(log, 'utf8') : '').split('\n').filter(Boolean);
+  // The calls that change something; lookups are checked separately where they matter.
+  const calls = () => raw().filter((l) => !/^docker (info|ps|inspect|volume ls)/.test(l));
+  return { runDc, calls, raw, proj, id };
 }
 
 const posixOnly = (t) => { if (process.platform === 'win32') { t.skip('POSIX shell fakes'); return true; } return false; };
 
 test('dc volumes: lists this project\'s agent volumes and changes nothing', (t) => {
   if (posixOnly(t)) return;
-  const { runDc, calls } = fakeDocker();
+  const { runDc, calls, id } = fakeDocker(t);
   const r = runDc('volumes');
   assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, new RegExp(`agent-claude-${ID}`));
-  assert.match(r.stdout, new RegExp(`agent-codex-${ID}`));
+  assert.match(r.stdout, new RegExp(`agent-claude-${id}`));
+  assert.match(r.stdout, new RegExp(`agent-codex-${id}`));
+  assert.doesNotMatch(r.stdout, new RegExp(OTHER));
   assert.deepEqual(calls(), []);
 });
 
 test('dc volumes --rm: refuses without a terminal or --yes', (t) => {
   if (posixOnly(t)) return;
-  const { runDc, calls } = fakeDocker();
+  const { runDc, calls } = fakeDocker(t);
   const r = runDc('volumes', '--rm');
   assert.equal(r.status, 1);
   assert.match(r.stderr, /--yes/);
@@ -210,54 +231,82 @@ test('dc volumes --rm: refuses without a terminal or --yes', (t) => {
 
 test('dc volumes --rm --yes: removes the container, then exactly its agent volumes', (t) => {
   if (posixOnly(t)) return;
-  const { runDc, calls } = fakeDocker();
+  const { runDc, calls, id } = fakeDocker(t);
   const r = runDc('volumes', '--rm', '--yes');
   assert.equal(r.status, 0, r.stderr);
-  assert.deepEqual(calls(), ['docker rm -f c1', `docker volume rm agent-claude-${ID} agent-codex-${ID}`]);
+  assert.deepEqual(calls(), ['docker rm -f c1', `docker volume rm agent-claude-${id} agent-codex-${id}`]);
 });
 
-test('dc volumes --prune --yes: deletes only unattached agent volumes', (t) => {
+test('dc volumes --rm --yes after dc rm: finds the data by its computed id', (t) => {
   if (posixOnly(t)) return;
-  const { runDc, calls } = fakeDocker();
+  const { runDc, calls, id } = fakeDocker(t, { container: false });
+  const r = runDc('volumes', '--rm', '--yes');
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(calls(), [`docker volume rm agent-claude-${id} agent-codex-${id}`]);
+});
+
+test('dc volumes --prune --yes: deletes only unused agent volumes, from anywhere', (t) => {
+  if (posixOnly(t)) return;
+  const { runDc, calls, raw } = fakeDocker(t);
   const r = runDc('volumes', '--prune', '--yes');
   assert.equal(r.status, 0, r.stderr);
+  assert.ok(raw().includes('docker volume ls -q --filter dangling=true'), 'asks Docker for unused volumes only');
   assert.deepEqual(calls(), [`docker volume rm agent-gemini-${OTHER}`]);
+});
+
+test('dc volumes --rm --prune: rejected', (t) => {
+  if (posixOnly(t)) return;
+  const { runDc, calls } = fakeDocker(t);
+  const r = runDc('volumes', '--rm', '--prune', '--yes');
+  assert.equal(r.status, 1);
+  assert.deepEqual(calls(), []);
 });
 
 test('dc up --fresh --yes: clears the agent volumes before rebuilding', (t) => {
   if (posixOnly(t)) return;
-  const { runDc, calls, proj } = fakeDocker();
+  const { runDc, calls, proj, id } = fakeDocker(t);
   const r = runDc('up', '--fresh', '--yes');
   assert.equal(r.status, 0, r.stderr);
   assert.deepEqual(calls(), [
     'docker rm -f c1',
-    `docker volume rm agent-claude-${ID} agent-codex-${ID}`,
+    `docker volume rm agent-claude-${id} agent-codex-${id}`,
     `devcontainer up --workspace-folder ${proj} --remove-existing-container`,
   ]);
 });
 
+test('dc up --fresh --yes after dc rm: still clears this project\'s data', (t) => {
+  if (posixOnly(t)) return;
+  const { runDc, calls, proj, id } = fakeDocker(t, { container: false });
+  const r = runDc('up', '--fresh', '--yes');
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(calls(), [
+    `docker volume rm agent-claude-${id} agent-codex-${id}`,
+    `devcontainer up --workspace-folder ${proj} --remove-existing-container`,
+  ]);
+});
+
+test('dc up --fresh: asks first, and does nothing when it cannot ask', (t) => {
+  if (posixOnly(t)) return;
+  const { runDc, calls } = fakeDocker(t);
+  const r = runDc('up', '--fresh');
+  assert.equal(r.status, 1);
+  assert.deepEqual(calls(), []);
+});
+
 test('dc up --rebuild: keeps the agent volumes', (t) => {
   if (posixOnly(t)) return;
-  const { runDc, calls, proj } = fakeDocker();
+  const { runDc, calls, proj } = fakeDocker(t);
   const r = runDc('up', '--rebuild');
   assert.equal(r.status, 0, r.stderr);
   assert.deepEqual(calls(), [`devcontainer up --workspace-folder ${proj} --remove-existing-container`]);
 });
 
-test('dc rm: removes the container, keeps its agent data, and says so', (t) => {
+test('dc rm: removes the container, keeps its agent data, and names it', (t) => {
   if (posixOnly(t)) return;
-  const { runDc, calls } = fakeDocker();
+  const { runDc, calls, id } = fakeDocker(t);
   const r = runDc('rm');
   assert.equal(r.status, 0, r.stderr);
   assert.deepEqual(calls(), ['docker rm -f c1']);
-  assert.match(r.stdout, /agent data kept in 2 volume/);
-});
-
-test('dc up --fresh with no container: nothing to delete, just starts', (t) => {
-  if (posixOnly(t)) return;
-  const { runDc, calls, proj } = fakeDocker({ container: false });
-  const r = runDc('up', '--fresh');
-  assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /no existing container/);
-  assert.deepEqual(calls(), [`devcontainer up --workspace-folder ${proj} --remove-existing-container`]);
+  assert.match(r.stdout, /agent data kept/);
+  assert.match(r.stdout, new RegExp(`agent-claude-${id}`));
 });

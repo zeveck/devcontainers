@@ -141,7 +141,7 @@ Rebuilding a container normally throws away everything inside it. So that your a
 | `~/.codex` | Codex CLI sessions, history, and settings |
 | `~/.gemini` | Gemini CLI chats, checkpoints, and settings |
 
-Sign-ins are the exception. Every rebuild deletes the agents' login files before anything starts, so after a rebuild you run `/login` in Claude (and sign in to Codex or Gemini if you use them), and everything else is as you left it. This keeps a usable login from lingering in a volume you've forgotten about. `gh` and `glab` aren't kept either, so sign in to those again too.
+Sign-ins are the exception. Every rebuild deletes the agents' login files before anything starts, so after a rebuild you run `/login` in Claude (and sign in to Codex or Gemini if you use them), and everything else is as you left it. A login only lasts as long as the container it was made in, rather than piling up across rebuilds. `gh` and `glab` aren't kept either, so sign in to those again too.
 
 Each project gets its own volumes, so containers for different projects can't see each other's history. `dc` handles them for you:
 
@@ -159,7 +159,8 @@ dc volumes --prune    delete saved data no container uses (asks first)
 A few things to know:
 
 - **Moving or renaming the project folder starts fresh.** The volume names come from the folder's path, so the old ones are left behind unused. `dc volumes --prune` finds them.
-- **Docker's own cleanup deletes them.** `docker volume prune` and `docker system prune --volumes` remove volumes no container is using, which includes these whenever the container is removed. Don't run those if you want the history.
+- **The logins in an abandoned project stay put.** They're deleted when a container is next created, so a project you remove with `dc rm` (or *Remove Container* in VS Code) and never start again keeps its last login in its volume. `dc volumes --rm` deletes a project's saved data, logins included; `dc volumes --prune` deletes it for every project with no container.
+- **Docker's own cleanup can delete them.** `docker volume prune --all` removes every volume no container is using, which includes these whenever a project's container is removed (on Docker older than 23, plain `docker volume prune` does too). Don't run it if you want the history.
 - **Sessions are kept as written.** Anything pasted into a session, or printed during one, stays in its history. Logins are deleted, but a key you typed into a settings file yourself (such as the `env` block of Claude's `settings.json`, or `~/.gemini/.env`) is kept like any other setting.
 
 Without `dc`, the volumes are named `agent-claude-<id>`, `agent-codex-<id>`, and `agent-gemini-<id>`; `docker volume ls` lists them and `docker volume rm` deletes them once their container is removed.

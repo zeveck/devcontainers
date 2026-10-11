@@ -4,9 +4,9 @@
 # an agent. setup.sh runs later, in postCreateCommand.
 set -euo pipefail
 
-# Docker creates fresh volume mount points (and a missing ~/.config) owned by
-# root, so hand them to the container user.
-for d in "$HOME/.config" "$HOME/.claude" "$HOME/.codex" "$HOME/.gemini"; do
+# Docker creates fresh volume mount points owned by root, so hand them to the
+# container user.
+for d in "$HOME/.claude" "$HOME/.codex" "$HOME/.gemini"; do
   sudo mkdir -p "$d"
   sudo chown "$(id -u):$(id -g)" "$d"
 done
@@ -26,20 +26,25 @@ rm -f \
   "$HOME/.gemini/a2a-oauth-tokens.json"
 
 # Claude Code can keep a legacy API key in .claude.json (inside ~/.claude via
-# CLAUDE_CONFIG_DIR). Drop just that field and keep the rest of the file.
-claude_json="$HOME/.claude/.claude.json"
-if [ -f "$claude_json" ]; then
-  python3 - "$claude_json" <<'PY' || echo "on-create: could not check $claude_json for an API key" >&2
-import json, os, sys
-path = sys.argv[1]
-with open(path) as f:
-    data = json.load(f)
-if isinstance(data, dict) and "primaryApiKey" in data:
-    del data["primaryApiKey"]
-    tmp = path + ".tmp"
-    with open(tmp, "w") as f:
-        json.dump(data, f, indent=2)
-    os.chmod(tmp, os.stat(path).st_mode & 0o777)
-    os.replace(tmp, path)
+# CLAUDE_CONFIG_DIR), and keeps full copies of that file in backups/. Drop just
+# that field everywhere and keep the rest.
+python3 - "$HOME/.claude" <<'PY' || echo "on-create: could not check Claude's settings for an API key" >&2
+import glob, json, os, sys
+config = sys.argv[1]
+paths = [os.path.join(config, ".claude.json")]
+paths += glob.glob(os.path.join(config, ".claude.json.backup*"))
+paths += glob.glob(os.path.join(config, "backups", ".claude.json.backup*"))
+for path in paths:
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        continue
+    if isinstance(data, dict) and "primaryApiKey" in data:
+        del data["primaryApiKey"]
+        tmp = path + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(data, f, indent=2)
+        os.chmod(tmp, os.stat(path).st_mode & 0o777)
+        os.replace(tmp, path)
 PY
-fi
