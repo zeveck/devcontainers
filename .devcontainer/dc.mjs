@@ -10,7 +10,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, copyFileSync, writeFileSync, rmSync, chmodSync, readdirSync, readFileSync } from 'node:fs';
-import { dirname, join, resolve, win32 } from 'node:path';
+import { dirname, join, posix, resolve, win32 } from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { homedir, platform } from 'node:os';
@@ -132,7 +132,7 @@ export function idLabelsFor(root, plat = platform()) {
     const s = win32.normalize(p);
     return s.length >= 2 && s[1] === ':' ? s[0].toLowerCase() + s.slice(1) : s;
   };
-  const join_ = plat === 'win32' ? win32.join : join;
+  const join_ = plat === 'win32' ? win32.join : posix.join;
   return {
     'devcontainer.local_folder': form(root),
     'devcontainer.config_file': form(join_(root, '.devcontainer', 'devcontainer.json')),
