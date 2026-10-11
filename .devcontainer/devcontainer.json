@@ -10,8 +10,19 @@
   // applied at container creation so lifecycle commands definitely see it;
   // remoteEnv's propagation to them is version-dependent.
   "containerEnv": {
-    "NPM_REGISTRY": "${localEnv:NPM_REGISTRY}"
+    "NPM_REGISTRY": "${localEnv:NPM_REGISTRY}",
+    // Keep Claude's .claude.json inside the persisted ~/.claude volume.
+    "CLAUDE_CONFIG_DIR": "/home/vscode/.claude"
   },
+  // Agent sign-ins, settings, and session history live in named volumes, one
+  // set per project, so they survive "Rebuild Container". Remove them with
+  // `docker volume rm` (see README) to start fresh.
+  "mounts": [
+    "source=agent-claude-${devcontainerId},target=/home/vscode/.claude,type=volume",
+    "source=agent-codex-${devcontainerId},target=/home/vscode/.codex,type=volume",
+    "source=agent-gemini-${devcontainerId},target=/home/vscode/.gemini,type=volume",
+    "source=agent-gh-${devcontainerId},target=/home/vscode/.config/gh,type=volume"
+  ],
   "postCreateCommand": "bash .devcontainer/setup.sh",
   "customizations": {
     "vscode": { "extensions": ["ms-python.python", "ms-python.pylint"] }

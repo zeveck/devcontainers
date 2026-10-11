@@ -11,6 +11,7 @@ It all runs locally, on your own hardware. The difference is that the agents and
 - [What ends up in your project](#what-ends-up-in-your-project)
 - [The `dc` command](#the-dc-command)
 - [Signing in to GitHub and GitLab](#signing-in-to-github-and-gitlab)
+- [Keeping sign-ins and history](#keeping-sign-ins-and-history)
 - [Letting an agent use a browser](#letting-an-agent-use-a-browser)
 - [Changing how it's set up](#changing-how-its-set-up)
 
@@ -127,7 +128,27 @@ auth --logout   # sign out
 
 It sends you to the right page to create the token, then takes the token you paste back and signs you in.
 
-Either way, rebuilding a container signs you out, since logins aren't stored outside it. Sign in again and carry on. And `auth --logout` only affects the container you're in — the token stays valid, so anywhere else you've used it keeps working.
+Either way, the login survives rebuilding the container (see [Keeping sign-ins and history](#keeping-sign-ins-and-history)). And `auth --logout` only affects the container you're in — the token stays valid, so anywhere else you've used it keeps working.
+
+## Keeping sign-ins and history
+
+Rebuilding a container normally throws away everything inside it. So that you don't have to sign in again and don't lose past agent sessions, each project keeps these folders in Docker volumes that outlive rebuilds:
+
+| Folder | What's in it |
+|---|---|
+| `~/.claude` | Claude Code sign-in, settings, plugins, and session history |
+| `~/.codex` | Codex CLI sign-in, settings, and sessions |
+| `~/.gemini` | Gemini CLI sign-in and settings |
+| `~/.config/gh` | `gh` sign-in |
+
+The volumes belong to one project, so containers for different projects still can't see each other's history. `dc rm` and *Rebuild Container* leave them alone. To start a project fresh, remove them while its container is stopped:
+
+```bash
+docker volume ls --filter name=agent-        # find the project's volumes
+docker volume rm <name> ...
+```
+
+`glab` keeps its login in `~/.config/glab-cli`, which isn't persisted, so sign in to GitLab again after a rebuild.
 
 ## Letting an agent use a browser
 
