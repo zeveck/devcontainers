@@ -37,14 +37,26 @@ paths += glob.glob(os.path.join(config, "backups", ".claude.json.backup*"))
 for path in paths:
     try:
         with open(path) as f:
-            data = json.load(f)
-    except (OSError, ValueError):
-        continue
-    if isinstance(data, dict) and "primaryApiKey" in data:
-        del data["primaryApiKey"]
+            text = f.read()
+        if "primaryApiKey" not in text:
+            continue
+        try:
+            data = json.loads(text)
+        except ValueError:
+            data = None
+        if not isinstance(data, dict):
+            # A backup that won't parse (say, a cut-off write) is only a copy,
+            # so delete it rather than leave a key in it. Leave a broken main
+            # file alone; Claude Code reports that one itself.
+            if path != paths[0]:
+                os.remove(path)
+            continue
+        data.pop("primaryApiKey", None)
         tmp = path + ".tmp"
         with open(tmp, "w") as f:
             json.dump(data, f, indent=2)
         os.chmod(tmp, os.stat(path).st_mode & 0o777)
         os.replace(tmp, path)
+    except OSError as e:
+        print(f"on-create: could not check {path}: {e}", file=sys.stderr)
 PY

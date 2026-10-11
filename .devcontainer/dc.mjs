@@ -277,13 +277,18 @@ async function confirm(question, flags) {
   const { createInterface } = await import('node:readline/promises');
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   try { return /^y(es)?$/i.test((await rl.question(`${question} [y/N] `)).trim()); }
-  catch { return false; } // Ctrl+C / Ctrl+D at the prompt
+  catch { process.stdout.write('\n'); return false; } // Ctrl+C / Ctrl+D at the prompt
   finally { rl.close(); }
 }
 
 /** Remove the containers, then the volumes (Docker refuses while a container uses them). */
 function removeContainersAndVolumes(containers, volumes) {
-  for (const c of containers) run('docker', ['rm', '-f', c.id]);
+  for (const c of containers) {
+    if ((run('docker', ['rm', '-f', c.id]).status ?? 1) !== 0) {
+      console.error(`dc: could not remove container ${c.id} (see above); nothing was deleted.`);
+      return 1;
+    }
+  }
   if (!volumes.length) return 0;
   const status = run('docker', ['volume', 'rm', ...volumes]).status ?? 1;
   if (status !== 0) {
@@ -512,14 +517,14 @@ function cmdDoctor() {
 const HELP = `dc — dev containers without VS Code
 
   dc up [--rebuild] [--no-cache]   create/start the container
-  dc up --fresh                    rebuild with empty agent folders (deletes history)
+  dc up --fresh [--yes]            rebuild with empty agent folders (deletes history)
   dc build                         build the image
   dc shell                         interactive shell inside it
   dc exec <cmd> [args...]          run a command inside it
   dc claude|codex|gemini|pw [...]  run an agent inside it
   dc down                          stop the container
   dc rm                            stop and remove it (agent data is kept)
-  dc volumes [--rm | --prune]      list or delete saved agent data
+  dc volumes [--rm | --prune]      list or delete saved agent data (--yes: don't ask)
   dc status                        show this project's containers
   dc logs [--follow]               container logs
   dc doctor                        check prerequisites
@@ -545,6 +550,10 @@ async function main(argv) {
   if (cmd === 'install') return cmdInstall(flags, rest);
   if (cmd === 'uninstall') return cmdUninstall(flags, rest);
   if (cmd === 'doctor') return cmdDoctor();
+  if (cmd === 'volumes') {
+    const unknown = [...flags].filter((f) => !['--rm', '--prune', '--yes'].includes(f));
+    if (unknown.length) { console.error(`dc volumes: unknown option ${unknown.join(' ')}`); return 1; }
+  }
   if (cmd === 'volumes' && flags.has('--prune')) {
     if (flags.has('--rm')) { console.error('dc volumes: use --rm or --prune, not both.'); return 1; }
     // Works across projects, so it doesn't need to run inside one.

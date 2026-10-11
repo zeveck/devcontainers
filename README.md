@@ -154,11 +154,13 @@ dc rm                 remove the container; the data stays for the next dc up
 dc volumes --prune    delete saved data no container uses (asks first)
 ```
 
+The commands that delete ask first; add `--yes` to skip the question, for example in a script.
+
 *Rebuild Container* in VS Code keeps the data too, and the `dc` commands work on containers VS Code made, so use `dc up --fresh` or `dc volumes --rm` from a terminal when you want a clean slate.
 
 A few things to know:
 
-- **Moving or renaming the project folder starts fresh.** The volume names come from the folder's path, so the old ones are left behind unused. `dc volumes --prune` finds them.
+- **Moving or renaming the project folder starts fresh.** The volume names come from the folder's path, so the moved project gets new ones. The old data stays with the old container: `dc status` from the new location lists every dev container on the machine, so remove the one with the old path (`docker rm <id>`) and then `dc volumes --prune` deletes its data.
 - **The logins in an abandoned project stay put.** They're deleted when a container is next created, so a project you remove with `dc rm` (or *Remove Container* in VS Code) and never start again keeps its last login in its volume. `dc volumes --rm` deletes a project's saved data, logins included; `dc volumes --prune` deletes it for every project with no container.
 - **Docker's own cleanup can delete them.** `docker volume prune --all` removes every volume no container is using, which includes these whenever a project's container is removed (on Docker older than 23, plain `docker volume prune` does too). Don't run it if you want the history.
 - **Sessions are kept as written.** Anything pasted into a session, or printed during one, stays in its history. Logins are deleted, but a key you typed into a settings file yourself (such as the `env` block of Claude's `settings.json`, or `~/.gemini/.env`) is kept like any other setting.

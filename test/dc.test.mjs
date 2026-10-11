@@ -102,6 +102,7 @@ test('spawnSmart: multi-word and metachar args arrive intact', (t) => {
   // cmd.exe fallback below.
   const echo = join(tmpdir(), `dcargs-${process.pid}.mjs`);
   writeFileSync(echo, 'console.log(JSON.stringify(process.argv.slice(2)))');
+  t.after(() => rmSync(echo, { force: true }));
   const argv = ['a b', 'a&b', 'C:\\Users\\x', 'claude "$@"', '--flag', ''];
   const r = spawnSmart(process.execPath, [echo, ...argv], { encoding: 'utf8' });
   assert.equal(r.status, 0, r.stderr);
@@ -115,6 +116,7 @@ test('spawnSmart: .cmd shim on Windows keeps args intact', (t) => {
   writeFileSync(echo, 'console.log(JSON.stringify(process.argv.slice(2)))');
   const shim = join(dir, 'dcargs2.cmd');
   writeFileSync(shim, `@node "${echo}" %*\r\n`);
+  t.after(() => { rmSync(echo, { force: true }); rmSync(shim, { force: true }); });
   const argv = ['a b', 'C:\\Users\\x', 'claude "$@"', '--flag'];
   const r = spawnSmart(shim, argv, { encoding: 'utf8' });
   assert.equal(r.status, 0, r.stderr);
@@ -252,6 +254,15 @@ test('dc volumes --prune --yes: deletes only unused agent volumes, from anywhere
   assert.equal(r.status, 0, r.stderr);
   assert.ok(raw().includes('docker volume ls -q --filter dangling=true'), 'asks Docker for unused volumes only');
   assert.deepEqual(calls(), [`docker volume rm agent-gemini-${OTHER}`]);
+});
+
+test('dc volumes: unknown options are rejected, not ignored', (t) => {
+  if (posixOnly(t)) return;
+  const { runDc, calls } = fakeDocker(t);
+  const r = runDc('volumes', '--remove');
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /unknown option --remove/);
+  assert.deepEqual(calls(), []);
 });
 
 test('dc volumes --rm --prune: rejected', (t) => {
