@@ -23,6 +23,10 @@
     "source=agent-gemini-${devcontainerId},target=/home/vscode/.gemini,type=volume",
     "source=agent-gh-${devcontainerId},target=/home/vscode/.config/gh,type=volume"
   ],
+  // Docker creates fresh volume mount points (and a missing ~/.config) owned
+  // by root. Fix that in onCreateCommand, which finishes before VS Code
+  // starts extensions; setup.sh runs later in postCreateCommand.
+  "onCreateCommand": "for d in \"$HOME/.config\" \"$HOME/.config/gh\" \"$HOME/.claude\" \"$HOME/.codex\" \"$HOME/.gemini\"; do sudo mkdir -p \"$d\" && sudo chown \"$(id -u):$(id -g)\" \"$d\"; done",
   "postCreateCommand": "bash .devcontainer/setup.sh",
   "customizations": {
     "vscode": { "extensions": ["ms-python.python", "ms-python.pylint"] }

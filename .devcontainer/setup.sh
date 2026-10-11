@@ -1,15 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Docker creates fresh named-volume mount points (and missing parents such as
-# ~/.config) owned by root. Hand them to the container user before anything
-# writes there. Non-recursive: on later rebuilds the contents are already ours.
-echo "📂 Preparing persisted agent folders..."
-for dir in "$HOME/.config" "$HOME/.config/gh" "$HOME/.claude" "$HOME/.codex" "$HOME/.gemini"; do
-  sudo mkdir -p "$dir"
-  sudo chown "$(id -u):$(id -g)" "$dir"
-done
-
 # Install Claude Code CLI (native installer).
 echo "🤖 Installing Claude Code..."
 curl -fsSL https://claude.ai/install.sh | bash

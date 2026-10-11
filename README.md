@@ -141,10 +141,11 @@ Rebuilding a container normally throws away everything inside it. So that you do
 | `~/.gemini` | Gemini CLI sign-in and settings |
 | `~/.config/gh` | `gh` sign-in |
 
-The volumes belong to one project, so containers for different projects still can't see each other's history. `dc rm` and *Rebuild Container* leave them alone. To start a project fresh, remove them while its container is stopped:
+The volumes belong to one project, so containers for different projects still can't see each other's history. `dc rm` and *Rebuild Container* leave them alone. The volume names end in an ID that the dev container tooling derives from the project folder's path, so moving or renaming the folder starts with fresh volumes. To start a project fresh on purpose, look up its volumes and remove them while its container is stopped:
 
 ```bash
-docker volume ls --filter name=agent-        # find the project's volumes
+dc status                                          # shows the container ID
+docker inspect <container> --format '{{range .Mounts}}{{.Name}} {{end}}'
 docker volume rm <name> ...
 ```
 
