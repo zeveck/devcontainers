@@ -149,14 +149,14 @@ Each project gets its own volumes, so containers for different projects can't se
 dc volumes            list this project's saved agent data
 dc up --rebuild       rebuild and keep it
 dc up --fresh         rebuild with empty agent folders (asks first)
-dc volumes --rm       delete it and remove the container (asks first)
 dc rm                 remove the container; the data stays for the next dc up
+dc volumes --rm       delete it, once the container is removed (asks first)
 dc volumes --prune    delete saved data no container uses (asks first)
 ```
 
-The commands that delete ask first; add `--yes` to skip the question, for example in a script.
+The commands that delete ask first; add `--yes` to skip the question, for example in a script. Docker can't delete a volume while a container is using it, even a stopped one, so `dc volumes --rm` refuses until you've run `dc rm`. To clear the data and carry on working, `dc up --fresh` does both steps for you.
 
-*Rebuild Container* in VS Code keeps the data too, and the `dc` commands work on containers VS Code made, so use `dc up --fresh` or `dc volumes --rm` from a terminal when you want a clean slate.
+*Rebuild Container* in VS Code keeps the data too, and the `dc` commands work on containers VS Code made, so use `dc up --fresh` from a terminal when you want a clean slate.
 
 A few things to know:
 

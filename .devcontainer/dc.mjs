@@ -328,13 +328,23 @@ async function cmdVolumes(root, flags) {
   if (!flags.has('--rm')) {
     console.log('Saved agent data for this project (history, memory, settings, plugins; no sign-ins):');
     listVolumes(volumes);
-    console.log('\n`dc volumes --rm` deletes it; `dc up --fresh` deletes it and starts a new container.');
+    console.log(cs.length
+      ? '\n`dc up --fresh` clears it and starts a new container. To delete it for good, `dc rm` and then `dc volumes --rm`.'
+      : '\n`dc volumes --rm` deletes it.');
     return 0;
   }
-  console.log(cs.length ? 'This removes the container and deletes:' : 'This deletes:');
+  // Docker won't delete a volume a container still uses, even a stopped one,
+  // and --rm deletes only data, so leave removing the container to the user.
+  if (cs.length) {
+    console.error('dc volumes: this project\'s container is still using its saved agent data.\n'
+      + 'Remove the container with `dc rm`, then run `dc volumes --rm` again.\n'
+      + 'Or run `dc up --fresh` to clear the data and start a new container.');
+    return 1;
+  }
+  console.log('This deletes:');
   listVolumes(volumes);
   if (!(await confirm('Delete this project\'s agent history, memory, settings, and plugins?', flags))) return 1;
-  const status = removeContainersAndVolumes(cs, volumes);
+  const status = removeContainersAndVolumes([], volumes);
   if (status === 0) console.log('done. The next `dc up` starts with empty agent folders.');
   return status;
 }

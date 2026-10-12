@@ -224,22 +224,24 @@ test('dc volumes: lists this project\'s agent volumes and changes nothing', (t) 
 
 test('dc volumes --rm: refuses without a terminal or --yes', (t) => {
   if (posixOnly(t)) return;
-  const { runDc, calls } = fakeDocker(t);
+  const { runDc, calls } = fakeDocker(t, { container: false });
   const r = runDc('volumes', '--rm');
   assert.equal(r.status, 1);
   assert.match(r.stderr, /--yes/);
   assert.deepEqual(calls(), []);
 });
 
-test('dc volumes --rm --yes: removes the container, then exactly its agent volumes', (t) => {
+test('dc volumes --rm --yes: refuses while the container exists, and deletes nothing', (t) => {
   if (posixOnly(t)) return;
-  const { runDc, calls, id } = fakeDocker(t);
+  const { runDc, calls } = fakeDocker(t);
   const r = runDc('volumes', '--rm', '--yes');
-  assert.equal(r.status, 0, r.stderr);
-  assert.deepEqual(calls(), ['docker rm -f c1', `docker volume rm agent-claude-${id} agent-codex-${id}`]);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /dc rm/);
+  assert.match(r.stderr, /dc up --fresh/);
+  assert.deepEqual(calls(), []);
 });
 
-test('dc volumes --rm --yes after dc rm: finds the data by its computed id', (t) => {
+test('dc volumes --rm --yes after dc rm: deletes exactly its agent volumes, found by computed id', (t) => {
   if (posixOnly(t)) return;
   const { runDc, calls, id } = fakeDocker(t, { container: false });
   const r = runDc('volumes', '--rm', '--yes');

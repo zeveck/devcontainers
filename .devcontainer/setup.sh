@@ -12,8 +12,8 @@ if [ -n "${NPM_REGISTRY:-}" ]; then
   npm config set registry "$NPM_REGISTRY"
 fi
 
-# Install GPT-5 Codex CLI.
-echo "🧠 Installing GPT-5 Codex..."
+# Install Codex CLI (it picks its model at run time, not at install).
+echo "🧠 Installing Codex CLI..."
 npm install -g @openai/codex@latest
 
 # Install Gemini CLI.
