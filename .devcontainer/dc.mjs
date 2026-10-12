@@ -214,6 +214,8 @@ export function spawnSmart(cmd, args, opts = {}) {
 
 const run = (cmd, args, opts = {}) => spawnSmart(cmd, args, { stdio: 'inherit', ...opts });
 const capture = (cmd, args) => spawnSmart(cmd, args, { encoding: 'utf8' });
+// For docker rm/stop, which echo each id they act on; errors still show.
+const runQuiet = (cmd, args) => spawnSmart(cmd, args, { stdio: ['inherit', 'ignore', 'inherit'] });
 
 function has(cmd) {
   const r = capture(IS_WIN ? 'where' : 'which', [cmd]);
@@ -284,13 +286,13 @@ async function confirm(question, flags) {
 /** Remove the containers, then the volumes (Docker refuses while a container uses them). */
 function removeContainersAndVolumes(containers, volumes) {
   for (const c of containers) {
-    if ((run('docker', ['rm', '-f', c.id]).status ?? 1) !== 0) {
+    if ((runQuiet('docker', ['rm', '-f', c.id]).status ?? 1) !== 0) {
       console.error(`dc: could not remove container ${c.id} (see above); nothing was deleted.`);
       return 1;
     }
   }
   if (!volumes.length) return 0;
-  const status = run('docker', ['volume', 'rm', ...volumes]).status ?? 1;
+  const status = runQuiet('docker', ['volume', 'rm', ...volumes]).status ?? 1;
   if (status !== 0) {
     console.error('dc: could not delete every volume (see above).'
       + (containers.length ? ' The container was removed; `dc up` starts it again.' : ''));
@@ -311,7 +313,10 @@ async function cmdPrune(flags) {
   console.log('\nA project removed with `dc rm` picks its data up again on its next `dc up`;');
   console.log('deleting it here loses that history.');
   if (!(await confirm(`Delete these ${orphans.length} volume(s)?`, flags))) return 1;
-  return run('docker', ['volume', 'rm', ...orphans]).status ?? 1;
+  const status = runQuiet('docker', ['volume', 'rm', ...orphans]).status ?? 1;
+  if (status === 0) console.log('Deleted.');
+  else console.error('dc: could not delete every volume (see above).');
+  return status;
 }
 
 async function cmdVolumes(root, flags) {
@@ -343,7 +348,7 @@ async function cmdVolumes(root, flags) {
   }
   if (!(await confirm('Delete this project\'s saved agent history (sessions, memory, settings, plugins)?', flags))) return 1;
   const status = removeContainersAndVolumes([], volumes);
-  if (status === 0) console.log('done. The next `dc up` starts with empty agent folders.');
+  if (status === 0) console.log('Deleted. The next `dc up` starts with empty agent folders.');
   return status;
 }
 
@@ -359,7 +364,7 @@ async function cmdRmVolumes(root, flags) {
     if (!(await confirm(q, flags))) return 1;
   }
   const status = removeContainersAndVolumes(cs, volumes);
-  if (status === 0 && volumes.length) console.log('done. The next `dc up` starts with empty agent folders.');
+  if (status === 0 && volumes.length) console.log('Deleted. The next `dc up` starts with empty agent folders.');
   return status;
 }
 
@@ -606,6 +611,7 @@ async function main(argv) {
         }
         const status = removeContainersAndVolumes(cs, volumes);
         if (status !== 0) return status;
+        if (volumes.length) console.log('Agent data cleared; rebuilding.');
       }
       if (flags.has('--rebuild') || flags.has('--fresh')) a.push('--remove-existing-container');
       if (flags.has('--no-cache')) a.push('--build-no-cache');
@@ -633,7 +639,7 @@ async function main(argv) {
       if (!cs.length) { reportNoMatch(root); return 0; }
       const volumes = cmd === 'rm' ? projectVolumes(root, cs) : [];
       for (const c of cs) {
-        run('docker', cmd === 'rm' ? ['rm', '-f', c.id] : ['stop', c.id]);
+        runQuiet('docker', cmd === 'rm' ? ['rm', '-f', c.id] : ['stop', c.id]);
       }
       if (volumes.length) {
         console.log('agent data kept for the next `dc up`:');

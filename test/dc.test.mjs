@@ -194,6 +194,10 @@ case "$*" in
   "inspect --format "*) echo '${mounts}' ;;
   "volume ls -q --filter dangling=true") printf '%s\\n' ${dangling.join(' ')} ;;
   "volume ls -q") printf '%s\\n' ${all.join(' ')} ;;
+  # Like the real docker, echo what was removed or stopped.
+  "rm -f "*) echo "$3" ;;
+  "stop "*) echo "$2" ;;
+  "volume rm "*) shift 2; printf '%s\\n' "$@" ;;
 esac
 exit 0
 `);
@@ -285,6 +289,9 @@ test('dc up --fresh --yes: clears the agent volumes before rebuilding', (t) => {
     `docker volume rm agent-claude-${id} agent-codex-${id}`,
     `devcontainer up --workspace-folder ${proj} --remove-existing-container`,
   ]);
+  // docker's own echo of each removed id stays out of dc's output.
+  assert.doesNotMatch(r.stdout, /^(c1|agent-)/m);
+  assert.match(r.stdout, /Agent data cleared; rebuilding/);
 });
 
 test('dc up --fresh --yes after dc rm: still clears this project\'s data', (t) => {
