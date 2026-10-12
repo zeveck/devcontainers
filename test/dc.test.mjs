@@ -323,3 +323,37 @@ test('dc rm: removes the container, keeps its agent data, and names it', (t) => 
   assert.match(r.stdout, /agent data kept/);
   assert.match(r.stdout, new RegExp(`agent-claude-${id}`));
 });
+
+test('dc rm --volumes --yes: removes the container, then exactly its agent volumes', (t) => {
+  if (posixOnly(t)) return;
+  const { runDc, calls, id } = fakeDocker(t);
+  const r = runDc('rm', '--volumes', '--yes');
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(calls(), ['docker rm -f c1', `docker volume rm agent-claude-${id} agent-codex-${id}`]);
+});
+
+test('dc rm --volumes --yes after dc rm: still deletes the agent volumes', (t) => {
+  if (posixOnly(t)) return;
+  const { runDc, calls, id } = fakeDocker(t, { container: false });
+  const r = runDc('rm', '--volumes', '--yes');
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(calls(), [`docker volume rm agent-claude-${id} agent-codex-${id}`]);
+});
+
+test('dc rm --volumes: asks first, and removes nothing when it cannot ask', (t) => {
+  if (posixOnly(t)) return;
+  const { runDc, calls } = fakeDocker(t);
+  const r = runDc('rm', '--volumes');
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /--yes/);
+  assert.deepEqual(calls(), []);
+});
+
+test('dc rm: unknown options are rejected, not ignored', (t) => {
+  if (posixOnly(t)) return;
+  const { runDc, calls } = fakeDocker(t);
+  const r = runDc('rm', '--volume');
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /unknown option --volume/);
+  assert.deepEqual(calls(), []);
+});

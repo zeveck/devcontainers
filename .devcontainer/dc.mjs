@@ -329,7 +329,7 @@ async function cmdVolumes(root, flags) {
     console.log('Saved agent data for this project (history, memory, settings, plugins; no sign-ins):');
     listVolumes(volumes);
     console.log(cs.length
-      ? '\n`dc up --fresh` clears it and starts a new container. To delete it for good, `dc rm` and then `dc volumes --rm`.'
+      ? '\n`dc up --fresh` clears it and starts a new container. To delete it for good, `dc rm --volumes`.'
       : '\n`dc volumes --rm` deletes it.');
     return 0;
   }
@@ -337,7 +337,7 @@ async function cmdVolumes(root, flags) {
   // and --rm deletes only data, so leave removing the container to the user.
   if (cs.length) {
     console.error('dc volumes: this project\'s container is still using its saved agent data.\n'
-      + 'Remove the container with `dc rm`, then run `dc volumes --rm` again.\n'
+      + 'Run `dc rm --volumes` to remove the container and delete the data together.\n'
       + 'Or run `dc up --fresh` to clear the data and start a new container.');
     return 1;
   }
@@ -346,6 +346,21 @@ async function cmdVolumes(root, flags) {
   if (!(await confirm('Delete this project\'s agent history, memory, settings, and plugins?', flags))) return 1;
   const status = removeContainersAndVolumes([], volumes);
   if (status === 0) console.log('done. The next `dc up` starts with empty agent folders.');
+  return status;
+}
+
+/** dc rm --volumes: remove the container and delete its agent data. */
+async function cmdRmVolumes(root, flags) {
+  const cs = findContainers(root);
+  const volumes = projectVolumes(root, cs);
+  if (!cs.length && !volumes.length) { reportNoMatch(root); return 0; }
+  if (volumes.length) {
+    console.log(cs.length ? 'This removes the container and deletes:' : 'There is no container; this deletes:');
+    listVolumes(volumes);
+    if (!(await confirm('Delete this project\'s agent history, memory, settings, and plugins?', flags))) return 1;
+  }
+  const status = removeContainersAndVolumes(cs, volumes);
+  if (status === 0 && volumes.length) console.log('done. The next `dc up` starts with empty agent folders.');
   return status;
 }
 
@@ -533,7 +548,7 @@ const HELP = `dc — dev containers without VS Code
   dc exec <cmd> [args...]          run a command inside it
   dc claude|codex|gemini|pw [...]  run an agent inside it
   dc down                          stop the container
-  dc rm                            stop and remove it (agent data is kept)
+  dc rm [--volumes] [--yes]        stop and remove it (--volumes: delete agent data too)
   dc volumes [--rm | --prune]      list or delete saved agent data (--yes: don't ask)
   dc status                        show this project's containers
   dc logs [--follow]               container logs
@@ -563,6 +578,10 @@ async function main(argv) {
   if (cmd === 'volumes') {
     const unknown = [...flags].filter((f) => !['--rm', '--prune', '--yes'].includes(f));
     if (unknown.length) { console.error(`dc volumes: unknown option ${unknown.join(' ')}`); return 1; }
+  }
+  if (cmd === 'rm') {
+    const unknown = [...flags].filter((f) => !['--volumes', '--yes'].includes(f));
+    if (unknown.length) { console.error(`dc rm: unknown option ${unknown.join(' ')}`); return 1; }
   }
   if (cmd === 'volumes' && flags.has('--prune')) {
     if (flags.has('--rm')) { console.error('dc volumes: use --rm or --prune, not both.'); return 1; }
@@ -608,7 +627,10 @@ async function main(argv) {
       const tool = cmd === 'pw' ? 'playwright-cli' : cmd;
       return dc(buildExecArgs(root, [tool, ...raw], { env: process.env }));
     }
-    case 'down': case 'rm': {
+    case 'rm':
+      if (flags.has('--volumes')) return cmdRmVolumes(root, flags);
+    // fall through
+    case 'down': {
       const cs = findContainers(root);
       if (!cs.length) { reportNoMatch(root); return 0; }
       const volumes = cmd === 'rm' ? projectVolumes(root, cs) : [];
