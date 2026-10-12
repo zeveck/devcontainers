@@ -36,8 +36,11 @@ paths += glob.glob(os.path.join(config, ".claude.json.backup*"))
 paths += glob.glob(os.path.join(config, "backups", ".claude.json.backup*"))
 for path in paths:
     try:
-        with open(path) as f:
-            text = f.read()
+        try:
+            with open(path) as f:
+                text = f.read()
+        except FileNotFoundError:
+            continue  # a fresh volume has no .claude.json yet
         if "primaryApiKey" not in text:
             continue
         try:
