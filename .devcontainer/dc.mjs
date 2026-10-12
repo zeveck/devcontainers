@@ -341,9 +341,7 @@ async function cmdVolumes(root, flags) {
       + 'Or run `dc up --fresh` to clear the data and start a new container.');
     return 1;
   }
-  console.log('This deletes:');
-  listVolumes(volumes);
-  if (!(await confirm('Delete this project\'s agent history, memory, settings, and plugins?', flags))) return 1;
+  if (!(await confirm('Delete this project\'s saved agent history (sessions, memory, settings, plugins)?', flags))) return 1;
   const status = removeContainersAndVolumes([], volumes);
   if (status === 0) console.log('done. The next `dc up` starts with empty agent folders.');
   return status;
@@ -355,9 +353,10 @@ async function cmdRmVolumes(root, flags) {
   const volumes = projectVolumes(root, cs);
   if (!cs.length && !volumes.length) { reportNoMatch(root); return 0; }
   if (volumes.length) {
-    console.log(cs.length ? 'This removes the container and deletes:' : 'There is no container; this deletes:');
-    listVolumes(volumes);
-    if (!(await confirm('Delete this project\'s agent history, memory, settings, and plugins?', flags))) return 1;
+    const q = cs.length
+      ? 'Remove this project\'s container and its agent history (sessions, memory, settings, plugins)?'
+      : 'Delete this project\'s saved agent history (sessions, memory, settings, plugins)?';
+    if (!(await confirm(q, flags))) return 1;
   }
   const status = removeContainersAndVolumes(cs, volumes);
   if (status === 0 && volumes.length) console.log('done. The next `dc up` starts with empty agent folders.');
@@ -600,11 +599,10 @@ async function main(argv) {
         const cs = findContainers(root);
         const volumes = projectVolumes(root, cs);
         if (volumes.length) {
-          console.log('--fresh deletes this project\'s saved agent data:');
-          listVolumes(volumes);
-          if (!(await confirm('Delete it and rebuild?', flags))) return 1;
+          const q = 'Start fresh? Claude, Codex, and Gemini will forget this project\'s sessions, memory, settings, and plugins.';
+          if (!(await confirm(q, flags))) return 1;
         } else {
-          console.log('no saved agent data for this project; nothing to clear.');
+          console.log('Nothing saved yet; rebuilding.');
         }
         const status = removeContainersAndVolumes(cs, volumes);
         if (status !== 0) return status;
