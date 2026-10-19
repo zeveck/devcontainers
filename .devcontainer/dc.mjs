@@ -612,17 +612,26 @@ async function cmdForward(root, flags, rest) {
 }
 
 // Runs inside the container for each forwarded connection: connect to the port
-// on the container's own localhost (IPv4 or IPv6) and pipe stdin/stdout to it.
+// on the container's own localhost and pipe stdin/stdout to it.
+// - It tries 127.0.0.1, then ::1, itself. Node's automatic IPv4/IPv6 fallback
+//   (autoSelectFamily on "localhost") was seen to stall on machines whose
+//   loopback has no IPv6, so it isn't relied on.
 // - It prints its pid to stderr, so the relay can stop it if the client goes
 //   away while the server keeps the connection open.
 // - allowHalfOpen, and ending stdout when the server ends: either side can
 //   finish sending while the other carries on.
 // - No process.exit: stdout to a pipe is written asynchronously, so exiting early
 //   could drop the tail of the reply. Closing stdin lets node exit once it's sent.
-const RELAY_INNER = "process.stderr.write(process.pid+'\\n');"
-  + "const s=require('net').connect({port:+process.argv[1],host:'localhost',autoSelectFamily:true,allowHalfOpen:true});"
-  + "process.stdin.pipe(s);s.pipe(process.stdout,{end:false});s.on('end',()=>process.stdout.end());"
-  + "s.on('error',()=>{process.exitCode=1;process.stdin.destroy();});s.on('close',()=>process.stdin.destroy());";
+const RELAY_INNER = [
+  "process.stderr.write(process.pid+'\\n');",
+  "const port=+process.argv[1];",
+  "const go=(hosts)=>{",
+  "const s=require('net').connect({port,host:hosts[0],allowHalfOpen:true});let up=false;",
+  "s.once('connect',()=>{up=true;process.stdin.pipe(s);s.pipe(process.stdout,{end:false});",
+  "s.on('end',()=>process.stdout.end());s.on('close',()=>process.stdin.destroy());});",
+  "s.on('error',()=>{if(!up&&hosts.length>1)return go(hosts.slice(1));process.exitCode=1;process.stdin.destroy();});",
+  "};go(['127.0.0.1','::1']);",
+].join('');
 
 function dockerSpawn(args, opts) {
   return process.env.DC_FAKE_DOCKER
