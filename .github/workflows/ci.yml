@@ -14,13 +14,14 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: '20' }
 
       - name: Unit tests
-        run: node --test
+        run: node --test --test-reporter=spec
         env:
           # Linux runners have Docker, so dc forward is also tested end to end there.
           DC_DOCKER_E2E: ${{ runner.os == 'Linux' && '1' || '' }}

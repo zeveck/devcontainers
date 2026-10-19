@@ -3,7 +3,7 @@
 // `docker exec -i <id> node -e <script> <port>` really runs the relay's inner
 // script, against a local test server, so the whole data path is exercised.
 
-import { test } from 'node:test';
+import { test as nodeTest } from 'node:test';
 import assert from 'node:assert/strict';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -12,6 +12,9 @@ import { spawn } from 'node:child_process';
 import { createServer, connect } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { parsePorts, stateDir } from '../.devcontainer/dc.mjs';
+
+// A hang becomes a named failure instead of stalling the whole run.
+const test = (name, fn) => nodeTest(name, { timeout: 60000 }, fn);
 
 const DC = resolve(fileURLToPath(import.meta.url), '../../.devcontainer/dc.mjs');
 
@@ -147,6 +150,13 @@ async function setup(t, { running = true } = {}) {
     return f ? JSON.parse(readFileSync(join(d, f), 'utf8')) : null;
   };
   t.after(async () => {
+    // Show what the relay and the fake docker did, for diagnosing CI.
+    try {
+      const { readdirSync } = require_fs;
+      for (const f of readdirSync(env.DC_STATE_DIR).filter((x) => x.endsWith('.log'))) {
+        t.diagnostic(`${f}:\n${readFileSync(join(env.DC_STATE_DIR, f), 'utf8').trim()}`);
+      }
+    } catch { /* no state */ }
     // Read the relay's pid before removing its state, then make sure it's gone.
     const r = relayFile();
     rmSync(env.DC_STATE_DIR, { recursive: true, force: true });
