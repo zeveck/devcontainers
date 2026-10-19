@@ -551,11 +551,20 @@ async function ensureForwarding(root, ports, ms = 15000,
 
 const runningContainer = (root) => findContainers(root).find((c) => c.state === 'running');
 
-/** This machine's network addresses, for reaching a --network port from elsewhere. */
-function lanAddresses() {
-  return Object.values(networkInterfaces()).flat()
-    .filter((a) => a && !a.internal && (a.family === 'IPv4' || a.family === 4))
-    .map((a) => a.address);
+// Adapters other devices can't reach: WSL and Hyper-V (vEthernet), Docker, and
+// virtual machine bridges.
+const VIRTUAL_ADAPTER = /^(vEthernet|docker|br-|veth|virbr|vmnet|vboxnet|bridge)/i;
+
+/**
+ * This machine's IPv4 addresses that other devices on the network could use,
+ * from os.networkInterfaces(). Leaves out virtual adapters and link-local
+ * (169.254.x) addresses, unless that would leave nothing.
+ */
+export function lanAddresses(ifaces = networkInterfaces()) {
+  const all = Object.entries(ifaces).flatMap(([name, list]) => (list || []).map((a) => ({ name, ...a })))
+    .filter((a) => !a.internal && (a.family === 'IPv4' || a.family === 4));
+  const real = all.filter((a) => !VIRTUAL_ADAPTER.test(a.name) && !a.address.startsWith('169.254.'));
+  return (real.length ? real : all).map((a) => a.address);
 }
 
 /** One line per port: what it's doing right now. */

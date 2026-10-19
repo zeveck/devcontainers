@@ -11,7 +11,7 @@ import { writeFileSync, mkdtempSync, mkdirSync, readFileSync, existsSync, realpa
 import { spawn } from 'node:child_process';
 import { createServer, connect } from 'node:net';
 import { fileURLToPath } from 'node:url';
-import { parsePorts, stateDir } from '../.devcontainer/dc.mjs';
+import { parsePorts, stateDir, lanAddresses } from '../.devcontainer/dc.mjs';
 
 // A hang becomes a named failure instead of stalling the whole run.
 const test = (name, fn) => nodeTest(name, { timeout: 60000 }, (t) => { if (process.env.DC_TEST_TRACE) console.error(`[${new Date().toISOString()}] start: ${name}`); return fn(t); });
@@ -33,6 +33,21 @@ test('parsePorts: accepts port numbers, rejects anything else', () => {
   for (const bad of ['0', '65536', '80a', '-1', '8999:3000', '']) {
     assert.throws(() => parsePorts([bad]), /not a port number/, bad);
   }
+});
+
+test('lanAddresses: real network addresses only, skipping virtual adapters', () => {
+  const v4 = (address, internal = false) => ({ address, family: 'IPv4', internal });
+  const ifaces = {
+    'Wi-Fi': [v4('192.168.68.108'), { address: 'fe80::1', family: 'IPv6', internal: false }],
+    'vEthernet (WSL (Hyper-V firewall))': [v4('172.23.160.1')],
+    'Loopback Pseudo-Interface 1': [v4('127.0.0.1', true)],
+    docker0: [v4('172.17.0.1')],
+    Ethernet: [v4('169.254.10.2')],
+  };
+  assert.deepEqual(lanAddresses(ifaces), ['192.168.68.108']);
+  // With nothing else to offer, show what there is rather than nothing.
+  assert.deepEqual(lanAddresses({ 'vEthernet (Default Switch)': [v4('172.30.0.1')] }), ['172.30.0.1']);
+  assert.deepEqual(lanAddresses({}), []);
 });
 
 test('stateDir: per-OS default, overridable', () => {
