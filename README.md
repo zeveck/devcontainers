@@ -172,30 +172,36 @@ Without `dc`, the volumes are named `agent-claude-<id>`, `agent-codex-<id>`, and
 
 ## Reaching a server in the container
 
-When something in the container serves on a port, such as a dev server on 8999, `dc forward` makes it reachable at `localhost` on your machine:
+If something in the container runs a web server, say a dev server on port 8999, `dc forward` lets you open it in your browser at `http://localhost:8999`:
 
 ```
-dc forward 8999        forward it now, and every time the container starts
-dc forward             list this project's forwards
+dc forward 8999        open container port 8999 at localhost:8999
+dc forward             see what's forwarded
 dc forward --rm 8999   stop forwarding it
 ```
 
-Forwards listen on this machine only (`localhost`), so nothing else on your network can reach them unless you ask for that (below).
+A forward keeps working until you remove it. It pauses when the container stops and comes back with `dc up`; if you start the container some other way, such as from VS Code, run `dc forward` to bring your forwards back. They're saved on your computer, not in the project, so there's nothing to commit. You can forward several ports at once: `dc forward 3000 8999`.
 
-Then open `http://localhost:8999` in your browser. Forwards are remembered per project on your machine, not in the repo, so nothing gets committed. They stop when the container stops, and `dc up` starts them again and says so. If you started the container some other way (VS Code, Docker Desktop), run `dc forward` to start them. You can forward several ports at once (`dc forward 3000 8999`), and the server can listen on the container's own localhost; it doesn't need `--host 0.0.0.0`.
+If something on your computer is already using the port, `dc forward` tells you, and starts forwarding as soon as the port is free.
 
-If the port is already in use on your machine, `dc forward` says so rather than failing quietly. It keeps the forward and picks it up as soon as the port is free; `dc forward` shows where each one stands, and `dc forward --rm 8999` drops it.
+VS Code has its own port forwarding, so you only need this when you're using `dc`.
 
-To reach the server from other devices on your network too, such as your phone, add `--network`:
+### Opening it to other devices
+
+At first, only your own computer can reach a forwarded port. To try your app from your phone or another computer on the same network, add `--network`:
 
 ```
-dc forward 8999 --network   localhost and your network
-dc forward 8999             back to localhost only
+dc forward 8999 --network   your computer and your network
+dc forward 8999             back to just your computer
 ```
 
-`dc` then shows this machine's network addresses (for example `http://192.168.1.20:8999`). Anyone on the same network can reach that port while it's forwarded, so use it on networks you trust, and only for the ports that need it; `dc forward`, `dc up`, and `dc status` mark which ones are open to the network. The first time, your firewall may ask whether to let Node.js accept connections. Allow it on private networks, or other devices won't get through.
+`dc` shows the address to use on the other device, such as `http://192.168.1.20:8999`. Anyone on the same network can reach it while it's open, so only do this on networks you trust. `dc forward` shows which ports are open to your network.
 
-VS Code forwards ports on its own, so this is for when you use `dc`. If you'd rather have a port fixed in the container's configuration, add `"appPort": [8999]` to `devcontainer.json` and rebuild; that one is set when the container is created, and the server inside does need to listen on `0.0.0.0`.
+If the other device can't connect:
+
+- Try the address on your own computer first. If it works there, something is blocking the other device, usually the firewall.
+- The first time, your firewall may ask whether to allow Node.js. Allow it for private networks.
+- On Windows, check that your network is set to Private: Settings → Network & internet → your Wi-Fi or Ethernet → Network profile type.
 
 ## Letting an agent use a browser
 
