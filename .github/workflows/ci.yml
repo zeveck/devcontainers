@@ -22,7 +22,9 @@ jobs:
 
       - name: Forward tests (alone, to see a hang)
         timeout-minutes: 5
-        run: node --test --test-reporter=spec test/forward.test.mjs
+        run: node test/forward.test.mjs
+        env:
+          DC_TEST_TRACE: '1'
 
       - name: Unit tests
         run: node --test --test-reporter=spec

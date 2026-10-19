@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { parsePorts, stateDir } from '../.devcontainer/dc.mjs';
 
 // A hang becomes a named failure instead of stalling the whole run.
-const test = (name, fn) => nodeTest(name, { timeout: 60000 }, fn);
+const test = (name, fn) => nodeTest(name, { timeout: 60000 }, (t) => { if (process.env.DC_TEST_TRACE) console.error(`[${new Date().toISOString()}] start: ${name}`); return fn(t); });
 
 // If something keeps this file's process alive after its tests, say what.
 after(() => {
