@@ -14,7 +14,7 @@ import { createServer } from 'node:net';
 import { dirname, join, posix, resolve, win32 } from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { homedir, platform } from 'node:os';
+import { homedir, networkInterfaces, platform } from 'node:os';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const IS_WIN = platform() === 'win32';
@@ -480,10 +480,17 @@ export function readForwards(root) {
   return Array.isArray(d?.ports) ? d.ports.filter((p) => Number.isInteger(p)) : [];
 }
 
-function writeForwards(root, ports) {
+/** The forwarded ports opened to the network (`--network`), not just localhost. */
+export function readNetworkForwards(root) {
+  const d = readJson(forwardFiles(root).list);
+  return Array.isArray(d?.network) ? d.network.filter((p) => Number.isInteger(p)) : [];
+}
+
+function writeForwards(root, ports, network = readNetworkForwards(root)) {
   const f = forwardFiles(root);
   const sorted = [...new Set(ports)].sort((a, b) => a - b);
-  if (sorted.length) writeJson(f.list, { root, ports: sorted });
+  const wide = [...new Set(network)].filter((p) => sorted.includes(p)).sort((a, b) => a - b);
+  if (sorted.length) writeJson(f.list, { root, ports: sorted, network: wide });
   else rmSync(f.list, { force: true });
 }
 
@@ -529,13 +536,14 @@ async function waitForRelay(root, done, ms = 15000) {
  * either listening or has failed. Starts a relay when none is running, and again
  * if one that was winding down (its container had stopped a moment ago) exits.
  */
-async function ensureForwarding(root, ports, ms = 15000) {
+async function ensureForwarding(root, ports, ms = 15000,
+  ready = (st) => ports.every((p) => st.listening.includes(p) || st.errors[p])) {
   const end = Date.now() + ms;
   let started = 0;
   for (;;) {
     const s = relayStatus(root);
     if (!s && Date.now() - started > 2000) { startRelay(root); started = Date.now(); }
-    if (s && ports.every((p) => s.listening.includes(p) || s.errors[p])) return s;
+    if (s && ready(s)) return s;
     if (Date.now() > end) return s;
     await sleep(150);
   }
@@ -543,11 +551,30 @@ async function ensureForwarding(root, ports, ms = 15000) {
 
 const runningContainer = (root) => findContainers(root).find((c) => c.state === 'running');
 
+/** This machine's network addresses, for reaching a --network port from elsewhere. */
+function lanAddresses() {
+  return Object.values(networkInterfaces()).flat()
+    .filter((a) => a && !a.internal && (a.family === 'IPv4' || a.family === 4))
+    .map((a) => a.address);
+}
+
 /** One line per port: what it's doing right now. */
 function describeForward(port, s) {
-  if (s?.listening?.includes(port)) return `localhost:${port} → container port ${port}`;
-  if (s?.errors?.[port]) return `localhost:${port} not forwarded: ${s.errors[port]}`;
-  return `localhost:${port} (starts with the container)`;
+  const wide = s?.network?.includes(port);
+  const where = wide ? `localhost:${port} and your network` : `localhost:${port}`;
+  if (s?.listening?.includes(port)) return `${where} → container port ${port}`;
+  if (s?.errors?.[port]) return `${where} not forwarded: ${s.errors[port]}`;
+  return `${where} (starts with the container)`;
+}
+
+/** After listing, say how other devices reach any --network ports. */
+function networkHint(ports, s) {
+  const wide = ports.filter((p) => s?.network?.includes(p) && s.listening.includes(p));
+  if (!wide.length) return;
+  const addrs = lanAddresses();
+  const eg = addrs.length ? addrs.slice(0, 3).map((a) => `http://${a}:${wide[0]}`).join(', ') : 'this machine\'s address';
+  console.log(`Reachable from other devices on your network, e.g. ${eg}.`
+    + ' If they can\'t connect, allow Node.js through this machine\'s firewall.');
 }
 
 /** Start the saved forwards for a running container and report them. */
@@ -556,9 +583,10 @@ async function resumeForwards(root) {
   if (!ports.length || !runningContainer(root)) return;
   const s = await ensureForwarding(root, ports);
   for (const p of ports) {
-    if (s?.listening?.includes(p)) console.log(`Forwarding localhost:${p} → container port ${p}.`);
+    if (s?.listening?.includes(p)) console.log(`Forwarding ${describeForward(p, s)}.`);
     else console.error(`dc: ${describeForward(p, s)}`);
   }
+  networkHint(ports, s);
   console.log('`dc forward --rm <port>` stops a forward.');
 }
 
@@ -589,25 +617,38 @@ async function cmdForward(root, flags, rest) {
     const saved = readForwards(root);
     if (!saved.length) { console.log('No ports forwarded. `dc forward <port>` adds one.'); return 0; }
     // A running container with no relay (started by VS Code, say): start one.
-    const s = c ? await ensureForwarding(root, saved) : null;
+    const s = c ? await ensureForwarding(root, saved) : { network: readNetworkForwards(root), listening: [], errors: {} };
     for (const p of saved) console.log(describeForward(p, s));
+    networkHint(saved, s);
     return 0;
   }
 
   // Check before saving, so a container that can't forward isn't left with a
   // saved port that fails on every `dc up`.
   if (c && !nodeInContainer(c)) { console.error(NO_NODE); return 1; }
-  withListLock(root, () => writeForwards(root, [...readForwards(root), ...ports]));
+  // --network opens these ports to the network; without it they're (or go
+  // back to being) localhost only.
+  const wide = flags.has('--network');
+  const narrowed = withListLock(root, () => {
+    const was = readNetworkForwards(root);
+    const network = wide ? [...was, ...ports] : was.filter((p) => !ports.includes(p));
+    writeForwards(root, [...readForwards(root), ...ports], network);
+    return wide ? [] : ports.filter((p) => was.includes(p));
+  });
+  for (const p of narrowed) console.log(`${p} is now forwarded to localhost only, not your network.`);
   if (!c) {
     console.log(`Saved. ${ports.join(', ')} will be forwarded when the container starts (\`dc up\`).`);
     return 0;
   }
-  const s = await ensureForwarding(root, ports);
+  // Wait until the relay has each port open in the mode just asked for.
+  const s = await ensureForwarding(root, ports, 15000,
+    (st) => ports.every((p) => st.errors[p] || (st.listening.includes(p) && st.network.includes(p) === wide)));
   let status = 0;
   for (const p of ports) {
-    if (s?.listening?.includes(p)) console.log(`Forwarding localhost:${p} → container port ${p}. \`dc forward --rm ${p}\` stops it.`);
+    if (s?.listening?.includes(p)) console.log(`Forwarding ${describeForward(p, s)}. \`dc forward --rm ${p}\` stops it.`);
     else { status = 1; console.error(`dc forward: ${describeForward(p, s)}`); }
   }
+  networkHint(ports, s);
   if (!s) console.error(`dc forward: the forwarding process didn't start; see ${forwardFiles(root).log}`);
   return status;
 }
@@ -686,11 +727,13 @@ async function relayMain(root) {
   log(`relay ${process.pid} started for ${root}`);
 
   let container = null;
-  const servers = new Map(); // port -> net.Server[]
+  const servers = new Map(); // port -> { list: net.Server[], network: boolean }
   const errors = {};
   const publish = () => {
     try {
-      writeJson(f.relay, { pid: process.pid, ts: Date.now(), listening: [...servers.keys()].sort((a, b) => a - b), errors });
+      const listening = [...servers.keys()].sort((a, b) => a - b);
+      const network = listening.filter((p) => servers.get(p).network);
+      writeJson(f.relay, { pid: process.pid, ts: Date.now(), listening, network, errors });
     } catch (e) { log(`could not write state: ${e.message}`); }
   };
 
@@ -744,7 +787,17 @@ async function relayMain(root) {
   });
 
   const BUSY = 'something on this machine is already using that port';
-  const open = async (port) => {
+  const open = async (port, network) => {
+    if (network) {
+      // `::` takes IPv4 and IPv6 together; a host without IPv6 gets 0.0.0.0.
+      let all = await listen(port, '::');
+      if (!all.srv && all.err.code !== 'EADDRINUSE') all = await listen(port, '0.0.0.0');
+      if (!all.srv) { errors[port] = all.err.code === 'EADDRINUSE' ? BUSY : all.err.message; return; }
+      servers.set(port, { list: [all.srv], network: true });
+      delete errors[port];
+      log(`listening on ${port}, all addresses`);
+      return;
+    }
     const v4 = await listen(port, '127.0.0.1');
     if (!v4.srv) { errors[port] = v4.err.code === 'EADDRINUSE' ? BUSY : v4.err.message; return; }
     // Browsers may try ::1 for "localhost". A host server already on ::1 would
@@ -752,13 +805,13 @@ async function relayMain(root) {
     // host without IPv6 just gets IPv4.
     const v6 = await listen(port, '::1');
     if (!v6.srv && v6.err.code === 'EADDRINUSE') { v4.srv.close(); errors[port] = BUSY; return; }
-    servers.set(port, v6.srv ? [v4.srv, v6.srv] : [v4.srv]);
+    servers.set(port, { list: v6.srv ? [v4.srv, v6.srv] : [v4.srv], network: false });
     delete errors[port];
     log(`listening on ${port}`);
   };
 
   const close = (port) => {
-    for (const srv of servers.get(port) || []) srv.close();
+    for (const srv of servers.get(port)?.list || []) srv.close();
     servers.delete(port);
     log(`stopped ${port}`);
   };
@@ -785,7 +838,10 @@ async function relayMain(root) {
     } else {
       dockerOk = Date.now();
       container = c;
-      for (const port of wanted) if (!servers.has(port)) await open(port);
+      const wide = readNetworkForwards(root);
+      // A port switched between localhost and --network is reopened in its new mode.
+      for (const port of wanted) if (servers.has(port) && servers.get(port).network !== wide.includes(port)) close(port);
+      for (const port of wanted) if (!servers.has(port)) await open(port, wide.includes(port));
       for (const port of [...servers.keys()]) if (!wanted.includes(port)) close(port);
       for (const port of Object.keys(errors)) if (!wanted.includes(+port)) delete errors[port];
     }
@@ -984,6 +1040,7 @@ const HELP = `dc — dev containers without VS Code
   dc rm [--volumes] [--yes]        stop and remove it (--volumes: delete agent data too)
   dc volumes [--rm | --prune]      list or delete saved agent data (--yes: don't ask)
   dc forward [<port>...]           forward ports to localhost, or list them
+  dc forward <port>... --network   ...and to other devices on your network
   dc forward --rm <port>...        stop forwarding them
   dc status                        show this project's containers
   dc logs [--follow]               container logs
@@ -1017,8 +1074,12 @@ async function main(argv) {
   // The background relay `dc forward` starts; not a user command.
   if (cmd === '__relay') return relayMain(rest[0]);
   if (cmd === 'forward') {
-    const unknown = [...flags].filter((f) => f !== '--rm');
+    const unknown = [...flags].filter((f) => !['--rm', '--network'].includes(f));
     if (unknown.length) { console.error(`dc forward: unknown option ${unknown.join(' ')}`); return 1; }
+    if (flags.has('--rm') && flags.has('--network')) {
+      console.error('dc forward: --rm stops a forward; to keep it but make it localhost only, run `dc forward <port>` without --network.');
+      return 1;
+    }
   }
   if (cmd === 'rm') {
     const unknown = [...flags].filter((f) => !['--volumes', '--yes'].includes(f));
@@ -1099,7 +1160,7 @@ async function main(argv) {
       for (const c of cs) console.log(`${c.id}  ${c.state}  ${c.folder}`);
       const ports = readForwards(root);
       if (ports.length) {
-        const st = runningContainer(root) ? relayStatus(root) : null;
+        const st = (runningContainer(root) && relayStatus(root)) || { network: readNetworkForwards(root), listening: [], errors: {} };
         console.log('forwards:');
         for (const port of ports) console.log(`  ${describeForward(port, st)}`);
       }

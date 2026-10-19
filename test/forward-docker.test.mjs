@@ -24,8 +24,8 @@ const canConnect = (port) => new Promise((res) => {
   c.once('connect', () => { c.destroy(); res(true); });
   c.once('error', () => res(false));
 });
-const fetchText = (port) => new Promise((res, rej) => {
-  get({ host: '127.0.0.1', port, path: '/' }, (r) => { let b = ''; r.on('data', (d) => { b += d; }); r.on('end', () => res(b)); }).on('error', rej);
+const fetchText = (port, host = '127.0.0.1') => new Promise((res, rej) => {
+  get({ host, port, path: '/' }, (r) => { let b = ''; r.on('data', (d) => { b += d; }); r.on('end', () => res(b)); }).on('error', rej);
 });
 async function until(fn, ms = 20000) {
   const end = Date.now() + ms;
@@ -72,7 +72,12 @@ test('dc forward with real Docker: reaches a localhost-only server, stops on --r
     assert.equal(stop.status, 0, stop.stderr);
     assert.equal(await canConnect(port), false);
 
-    assert.equal((await runDc(env, proj, 'forward', String(port))).status, 0);
+    // --network: reachable through this machine's network address too.
+    const { networkInterfaces } = await import('node:os');
+    const lan = Object.values(networkInterfaces()).flat().find((a) => a && !a.internal && (a.family === 'IPv4' || a.family === 4))?.address;
+    const wide = await runDc(env, proj, 'forward', String(port), '--network');
+    assert.equal(wide.status, 0, wide.stderr + wide.stdout);
+    if (lan) assert.equal(await fetchText(port, lan), 'hello from the container');
     assert.equal(await fetchText(port), 'hello from the container');
     spawnSync('docker', ['stop', '-t', '1', id]);
     assert.ok(await until(async () => !(await canConnect(port))), 'forward stops with the container');

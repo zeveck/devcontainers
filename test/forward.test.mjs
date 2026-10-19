@@ -403,3 +403,63 @@ test('dc forward: when the client leaves, a server that keeps the connection ope
   assert.ok(await until(killed, 10000), 'the inner process is stopped');
   assert.ok(await until(() => held.every((s) => s.destroyed || s.readableEnded), 10000), 'the server side closes');
 });
+
+/** A non-loopback IPv4 address of this machine, if it has one. */
+async function lanAddress() {
+  const { networkInterfaces } = await import('node:os');
+  return Object.values(networkInterfaces()).flat()
+    .find((a) => a && !a.internal && (a.family === 'IPv4' || a.family === 4))?.address;
+}
+
+/** Can we connect to host:port? */
+function canConnectTo(host, port) {
+  return new Promise((res) => {
+    const c = connect(port, host);
+    c.once('connect', () => { c.destroy(); res(true); });
+    c.once('error', () => res(false));
+    setTimeout(() => { c.destroy(); res(false); }, 3000);
+  });
+}
+
+test('dc forward: localhost only by default; --network opens it to the network, and back', async (t) => {
+  const lan = await lanAddress();
+  if (!lan) return t.skip('this machine has no network address to test from');
+  const { dc, port } = await setup(t);
+
+  assert.equal((await dc('forward', String(port))).status, 0);
+  assert.equal(await canConnectTo(lan, port), false, 'not reachable from the network by default');
+
+  const wide = await dc('forward', String(port), '--network');
+  assert.equal(wide.status, 0, wide.stderr);
+  assert.match(wide.stdout, new RegExp(`localhost:${port} and your network → container port ${port}`));
+  assert.match(wide.stdout, /Reachable from other devices on your network, e\.g\. http:\/\//);
+  assert.equal(await canConnectTo(lan, port), true, 'reachable through the network address');
+  assert.equal(await roundTrip(port, 'local'), 'LOCAL', 'localhost still works');
+  assert.match((await dc('forward')).stdout, /and your network/);
+
+  const back = await dc('forward', String(port));
+  assert.match(back.stdout, new RegExp(`${port} is now forwarded to localhost only`));
+  assert.equal(await canConnectTo(lan, port), false, 'closed to the network again');
+  assert.equal(await roundTrip(port, 'still'), 'STILL');
+});
+
+test('dc forward --network: remembered across a container restart', async (t) => {
+  const lan = await lanAddress();
+  if (!lan) return t.skip('this machine has no network address to test from');
+  const { dc, port, state, save, relayFile } = await setup(t);
+  assert.equal((await dc('forward', String(port), '--network')).status, 0);
+  state.running = false; save();
+  assert.ok(await until(() => relayFile() === null), 'relay exits with the container');
+  assert.match((await dc('forward')).stdout, /and your network \(starts with the container\)/);
+  state.running = true; save();
+  const up = await dc('up');
+  assert.match(up.stdout, new RegExp(`Forwarding localhost:${port} and your network`), up.stderr);
+  assert.equal(await canConnectTo(lan, port), true);
+});
+
+test('dc forward: --rm with --network is rejected', async (t) => {
+  const { dc } = await setup(t);
+  const r = await dc('forward', '--rm', '--network', '1234');
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /without --network/);
+});

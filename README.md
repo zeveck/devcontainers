@@ -180,9 +180,20 @@ dc forward             list this project's forwards
 dc forward --rm 8999   stop forwarding it
 ```
 
+Forwards listen on this machine only (`localhost`), so nothing else on your network can reach them unless you ask for that (below).
+
 Then open `http://localhost:8999` in your browser. Forwards are remembered per project on your machine, not in the repo, so nothing gets committed. They stop when the container stops, and `dc up` starts them again and says so. If you started the container some other way (VS Code, Docker Desktop), run `dc forward` to start them. You can forward several ports at once (`dc forward 3000 8999`), and the server can listen on the container's own localhost; it doesn't need `--host 0.0.0.0`.
 
 If the port is already in use on your machine, `dc forward` says so rather than failing quietly. It keeps the forward and picks it up as soon as the port is free; `dc forward` shows where each one stands, and `dc forward --rm 8999` drops it.
+
+To reach the server from other devices on your network too, such as your phone, add `--network`:
+
+```
+dc forward 8999 --network   localhost and your network
+dc forward 8999             back to localhost only
+```
+
+`dc` then shows this machine's network addresses (for example `http://192.168.1.20:8999`). Anyone on the same network can reach that port while it's forwarded, so use it on networks you trust, and only for the ports that need it; `dc forward`, `dc up`, and `dc status` mark which ones are open to the network. The first time, your firewall may ask whether to let Node.js accept connections. Allow it on private networks, or other devices won't get through.
 
 VS Code forwards ports on its own, so this is for when you use `dc`. If you'd rather have a port fixed in the container's configuration, add `"appPort": [8999]` to `devcontainer.json` and rebuild; that one is set when the container is created, and the server inside does need to listen on `0.0.0.0`.
 
