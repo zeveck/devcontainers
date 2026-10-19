@@ -172,10 +172,14 @@ async function setup(t, { running = true } = {}) {
       } catch { /* no state */ }
       try { console.error(`--- docker calls\n${readFileSync(env.FAKE_LOG, 'utf8').trim()}`); } catch { /* none */ }
     }
-    // Read the relay's pid before removing its state, then make sure it's gone.
+    // Stop the relay and wait for it to exit before removing its files: Windows
+    // won't delete files a running process holds.
     const r = relayFile();
-    rmSync(env.DC_STATE_DIR, { recursive: true, force: true });
-    try { if (r) process.kill(r.pid); } catch { /* gone */ }
+    if (r) {
+      try { process.kill(r.pid); } catch { /* already gone */ }
+      await until(() => { try { process.kill(r.pid, 0); return false; } catch { return true; } }, 5000);
+    }
+    rmSync(env.DC_STATE_DIR, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
     // close() waits for open connections, so end them first: a failed test can
     // leave one open, and cleanup must not hang on it.
     for (const s of sockets) s.destroy();

@@ -504,9 +504,10 @@ function startRelay(root) {
   if (relayStatus(root)) return;
   const { dir } = forwardFiles(root);
   mkdirSync(dir, { recursive: true });
-  // cwd: not the project folder, which Windows would then refuse to move or delete.
+  // cwd: the home folder, not the project (or state) folder, which Windows
+  // would refuse to move or delete while the relay runs.
   const child = spawn(process.execPath, [fileURLToPath(import.meta.url), '__relay', root], {
-    cwd: dir, detached: true, stdio: 'ignore', windowsHide: true, env: CHILD_ENV,
+    cwd: homedir(), detached: true, stdio: 'ignore', windowsHide: true, env: CHILD_ENV,
   });
   child.unref();
 }
