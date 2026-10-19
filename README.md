@@ -12,6 +12,7 @@ It all runs locally, on your own hardware. The difference is that the agents and
 - [The `dc` command](#the-dc-command)
 - [Signing in to GitHub and GitLab](#signing-in-to-github-and-gitlab)
 - [Keeping agent history across rebuilds](#keeping-agent-history-across-rebuilds)
+- [Reaching a server in the container](#reaching-a-server-in-the-container)
 - [Letting an agent use a browser](#letting-an-agent-use-a-browser)
 - [Changing how it's set up](#changing-how-its-set-up)
 
@@ -101,6 +102,7 @@ dc claude      run Claude inside it             (also codex, gemini, pw)
 dc exec ...    run any command inside it
 dc down        stop it                          (dc rm deletes it too, dc rm --volumes also its agent data)
 dc volumes     saved agent history              (see below)
+dc forward     reach a port in the container    (see below)
 dc status      show this project's container
 dc logs        show its output                  (--follow to keep watching)
 dc doctor      check your setup
@@ -167,6 +169,22 @@ A few things to know:
 - **Sessions are kept as written.** Anything pasted into a session, or printed during one, stays in its history. Logins are deleted, but a key you typed into a settings file yourself (such as the `env` block of Claude's `settings.json`, or `~/.gemini/.env`) is kept like any other setting.
 
 Without `dc`, the volumes are named `agent-claude-<id>`, `agent-codex-<id>`, and `agent-gemini-<id>`; `docker volume ls` lists them and `docker volume rm` deletes them once their container is removed.
+
+## Reaching a server in the container
+
+When something in the container serves on a port, such as a dev server on 8999, `dc forward` makes it reachable at `localhost` on your machine:
+
+```
+dc forward 8999        forward it now, and every time the container starts
+dc forward             list this project's forwards
+dc forward --rm 8999   stop forwarding it
+```
+
+Then open `http://localhost:8999` in your browser. Forwards are remembered per project on your machine, not in the repo, so nothing gets committed. They stop when the container stops, and `dc up` starts them again and says so. If you started the container some other way (VS Code, Docker Desktop), run `dc forward` to start them. You can forward several ports at once (`dc forward 3000 8999`), and the server can listen on the container's own localhost; it doesn't need `--host 0.0.0.0`.
+
+If the port is already in use on your machine, `dc forward` says so rather than failing quietly. It keeps the forward and picks it up as soon as the port is free; `dc forward` shows where each one stands, and `dc forward --rm 8999` drops it.
+
+VS Code forwards ports on its own, so this is for when you use `dc`. If you'd rather have a port fixed in the container's configuration, add `"appPort": [8999]` to `devcontainer.json` and rebuild; that one is set when the container is created, and the server inside does need to listen on `0.0.0.0`.
 
 ## Letting an agent use a browser
 

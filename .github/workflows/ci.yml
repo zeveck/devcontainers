@@ -21,6 +21,9 @@ jobs:
 
       - name: Unit tests
         run: node --test
+        env:
+          # Linux runners have Docker, so dc forward is also tested end to end there.
+          DC_DOCKER_E2E: ${{ runner.os == 'Linux' && '1' || '' }}
 
       - name: Shim runs (bash)
         if: runner.os != 'Windows'

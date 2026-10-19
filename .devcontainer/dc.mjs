@@ -8,8 +8,9 @@
 // from the current directory looking for .devcontainer/devcontainer.json, so the
 // installed copy works in any project.
 
-import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, copyFileSync, writeFileSync, rmSync, chmodSync, readdirSync, readFileSync } from 'node:fs';
+import { spawn, spawnSync, execFile } from 'node:child_process';
+import { existsSync, mkdirSync, copyFileSync, writeFileSync, rmSync, chmodSync, readdirSync, readFileSync, renameSync, appendFileSync, linkSync, statSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { dirname, join, posix, resolve, win32 } from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -203,6 +204,10 @@ export function winQuote(a) {
  * command line we quote ourselves via winQuote.
  */
 export function spawnSmart(cmd, args, opts = {}) {
+  // Tests stand in for docker with a Node script (works on every OS).
+  if (cmd === 'docker' && process.env.DC_FAKE_DOCKER) {
+    return spawnSync(process.execPath, [process.env.DC_FAKE_DOCKER, ...args], { ...opts, env: CHILD_ENV });
+  }
   let r = spawnSync(cmd, args, { ...opts, env: CHILD_ENV });
   if (IS_WIN && r.error) {
     const line = '"' + [cmd, ...args].map(winQuote).join(' ') + '"';
@@ -218,6 +223,7 @@ const capture = (cmd, args) => spawnSmart(cmd, args, { encoding: 'utf8' });
 const runQuiet = (cmd, args) => spawnSmart(cmd, args, { stdio: ['inherit', 'ignore', 'inherit'] });
 
 function has(cmd) {
+  if (cmd === 'docker' && process.env.DC_FAKE_DOCKER) return true;
   const r = capture(IS_WIN ? 'where' : 'which', [cmd]);
   return r.status === 0;
 }
@@ -229,6 +235,10 @@ function devcontainerCmd() {
 }
 
 function dc(args) {
+  // Tests stand in for the devcontainer CLI with a Node script.
+  if (process.env.DC_FAKE_DEVCONTAINER) {
+    return spawnSync(process.execPath, [process.env.DC_FAKE_DEVCONTAINER, ...args], { stdio: 'inherit', env: CHILD_ENV }).status ?? 1;
+  }
   const [cmd, prefix] = devcontainerCmd();
   return run(cmd, [...prefix, ...args]).status ?? 1;
 }
@@ -366,6 +376,405 @@ async function cmdRmVolumes(root, flags) {
   const status = removeContainersAndVolumes(cs, volumes);
   if (status === 0 && volumes.length) console.log('Deleted. The next `dc up` starts with empty agent folders.');
   return status;
+}
+
+// ── port forwarding ─────────────────────────────────────────────────────────
+//
+// `dc forward <port>` makes a port inside the container reachable at
+// localhost:<port> on this machine, without a rebuild (Docker only publishes
+// ports when it creates a container). A relay process in the background listens
+// here and, per connection, runs `docker exec -i <container> node` to connect to
+// the port from inside the container, piping bytes both ways. Because the
+// connection ends inside the container, servers that listen only on localhost
+// work too.
+//
+// The ports a project forwards are saved on this machine (not in the repo), keyed
+// by the project's folder. There is at most one relay per project. It re-reads
+// the list every POLL_MS and exits by itself once the list is empty, the
+// project's container is no longer running, or Docker has been unreachable for a
+// while, so stopping a forward never means killing a process by id. `dc up`
+// starts it again.
+
+const POLL_MS = 1500;
+// A relay rewrites its state file every poll; one this old belongs to a relay
+// that has died, even if its process id has since been reused.
+const STALE_MS = 10000;
+const DOCKER_GRACE_MS = Number(process.env.DC_RELAY_DOCKER_GRACE_MS) || 30000;
+
+/** Where dc keeps per-machine state (DC_STATE_DIR overrides, for tests). */
+export function stateDir(env = process.env, plat = platform()) {
+  if (env.DC_STATE_DIR) return env.DC_STATE_DIR;
+  if (plat === 'win32') return join(env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'), 'dc', 'state');
+  return join(env.XDG_STATE_HOME || join(homedir(), '.local', 'state'), 'dc');
+}
+
+/** Port numbers from command-line words; throws on anything that isn't one. */
+export function parsePorts(words) {
+  return words.map((w) => {
+    if (!/^\d{1,5}$/.test(w) || +w < 1 || +w > 65535) throw new Error(`not a port number: ${w}`);
+    return +w;
+  });
+}
+
+/**
+ * State file paths for a project. Keyed by the normalized folder, the same form
+ * findContainers matches on, so `C:\Code\Proj` and `c:\code\proj` share one list
+ * and one relay.
+ */
+const forwardFiles = (root) => {
+  const key = createHash('sha256').update(normalizeLocalFolder(root)).digest('hex').slice(0, 20);
+  const dir = stateDir();
+  return {
+    dir,
+    list: join(dir, `forwards-${key}.json`),
+    lock: join(dir, `forwards-${key}.lock`),
+    relay: join(dir, `relay-${key}.json`),
+    log: join(dir, `relay-${key}.log`),
+  };
+};
+
+const sleepSync = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
+function readJson(path) {
+  try { return JSON.parse(readFileSync(path, 'utf8')); } catch { return null; }
+}
+
+/**
+ * Write via a temp file and rename, so a reader never sees half a file. On
+ * Windows a rename over a file another process has open (a reader, or antivirus)
+ * can fail for a moment, so retry briefly.
+ */
+function writeJson(path, data) {
+  mkdirSync(dirname(path), { recursive: true });
+  const tmp = `${path}.${process.pid}.tmp`;
+  writeFileSync(tmp, JSON.stringify(data));
+  for (let i = 0; ; i++) {
+    try { renameSync(tmp, path); return; } catch (e) {
+      if (i >= 40 || !['EPERM', 'EACCES', 'EBUSY'].includes(e.code)) { rmSync(tmp, { force: true }); throw e; }
+      sleepSync(25);
+    }
+  }
+}
+
+/** Run `fn` while holding the project's list lock, so concurrent edits don't lose one. */
+function withListLock(root, fn) {
+  const { lock, dir } = forwardFiles(root);
+  mkdirSync(dir, { recursive: true });
+  const end = Date.now() + 10000;
+  for (;;) {
+    try { writeFileSync(lock, String(process.pid), { flag: 'wx' }); break; } catch (e) {
+      if (e.code !== 'EEXIST') throw e;
+      // A lock left by a dc that crashed mid-edit: edits take milliseconds.
+      let age = 0;
+      try { age = Date.now() - statSync(lock).mtimeMs; } catch { continue; }
+      if (age > 5000) { rmSync(lock, { force: true }); continue; }
+      if (Date.now() > end) throw new Error(`another dc is changing this project's forwards (lock: ${lock})`);
+      sleepSync(30);
+    }
+  }
+  try { return fn(); } finally { rmSync(lock, { force: true }); }
+}
+
+export function readForwards(root) {
+  const d = readJson(forwardFiles(root).list);
+  return Array.isArray(d?.ports) ? d.ports.filter((p) => Number.isInteger(p)) : [];
+}
+
+function writeForwards(root, ports) {
+  const f = forwardFiles(root);
+  const sorted = [...new Set(ports)].sort((a, b) => a - b);
+  if (sorted.length) writeJson(f.list, { root, ports: sorted });
+  else rmSync(f.list, { force: true });
+}
+
+function pidAlive(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; }
+}
+
+const relayLive = (s) => s && pidAlive(s.pid) && Date.now() - (s.ts || 0) < STALE_MS;
+
+/** The relay's last reported state, or null when no relay is running. */
+function relayStatus(root) {
+  const s = readJson(forwardFiles(root).relay);
+  return relayLive(s) ? s : null;
+}
+
+function startRelay(root) {
+  if (relayStatus(root)) return;
+  const { dir } = forwardFiles(root);
+  mkdirSync(dir, { recursive: true });
+  // cwd: not the project folder, which Windows would then refuse to move or delete.
+  const child = spawn(process.execPath, [fileURLToPath(import.meta.url), '__relay', root], {
+    cwd: dir, detached: true, stdio: 'ignore', windowsHide: true, env: CHILD_ENV,
+  });
+  child.unref();
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** Poll the relay's state until `done(state)` holds or the time runs out. */
+async function waitForRelay(root, done, ms = 15000) {
+  const end = Date.now() + ms;
+  for (;;) {
+    const s = relayStatus(root);
+    if (done(s) || Date.now() > end) return s;
+    await sleep(150);
+  }
+}
+
+/**
+ * Make sure a relay is serving `ports`, and return its state once each port is
+ * either listening or has failed. Starts a relay when none is running, and again
+ * if one that was winding down (its container had stopped a moment ago) exits.
+ */
+async function ensureForwarding(root, ports, ms = 15000) {
+  const end = Date.now() + ms;
+  let started = 0;
+  for (;;) {
+    const s = relayStatus(root);
+    if (!s && Date.now() - started > 2000) { startRelay(root); started = Date.now(); }
+    if (s && ports.every((p) => s.listening.includes(p) || s.errors[p])) return s;
+    if (Date.now() > end) return s;
+    await sleep(150);
+  }
+}
+
+const runningContainer = (root) => findContainers(root).find((c) => c.state === 'running');
+
+/** One line per port: what it's doing right now. */
+function describeForward(port, s) {
+  if (s?.listening?.includes(port)) return `localhost:${port} → container port ${port}`;
+  if (s?.errors?.[port]) return `localhost:${port} not forwarded: ${s.errors[port]}`;
+  return `localhost:${port} (starts with the container)`;
+}
+
+/** Start the saved forwards for a running container and report them. */
+async function resumeForwards(root) {
+  const ports = readForwards(root);
+  if (!ports.length || !runningContainer(root)) return;
+  const s = await ensureForwarding(root, ports);
+  for (const p of ports) {
+    if (s?.listening?.includes(p)) console.log(`Forwarding localhost:${p} → container port ${p}.`);
+    else console.error(`dc: ${describeForward(p, s)}`);
+  }
+  console.log('`dc forward --rm <port>` stops a forward.');
+}
+
+const nodeInContainer = (c) => capture('docker', ['exec', c.id, 'node', '--version']).status === 0;
+const NO_NODE = 'dc forward: the container has no `node` on its PATH, which forwarding uses.\n'
+  + 'The template installs it with the Node dev container feature.';
+
+async function cmdForward(root, flags, rest) {
+  let ports;
+  try { ports = parsePorts(rest); } catch (e) { console.error(`dc forward: ${e.message}`); return 1; }
+
+  if (flags.has('--rm')) {
+    if (!ports.length) { console.error('dc forward --rm: name the port(s) to stop, e.g. `dc forward --rm 8999`.'); return 1; }
+    const gone = withListLock(root, () => {
+      const saved = readForwards(root);
+      writeForwards(root, saved.filter((p) => !ports.includes(p)));
+      return ports.filter((p) => saved.includes(p));
+    });
+    for (const p of ports.filter((x) => !gone.includes(x))) console.log(`${p} wasn't forwarded.`);
+    if (!gone.length) return 0;
+    await waitForRelay(root, (st) => !st || gone.every((p) => !st.listening.includes(p)));
+    for (const p of gone) console.log(`Stopped forwarding ${p}.`);
+    return 0;
+  }
+
+  const c = runningContainer(root);
+  if (!ports.length) {
+    const saved = readForwards(root);
+    if (!saved.length) { console.log('No ports forwarded. `dc forward <port>` adds one.'); return 0; }
+    // A running container with no relay (started by VS Code, say): start one.
+    const s = c ? await ensureForwarding(root, saved) : null;
+    for (const p of saved) console.log(describeForward(p, s));
+    return 0;
+  }
+
+  // Check before saving, so a container that can't forward isn't left with a
+  // saved port that fails on every `dc up`.
+  if (c && !nodeInContainer(c)) { console.error(NO_NODE); return 1; }
+  withListLock(root, () => writeForwards(root, [...readForwards(root), ...ports]));
+  if (!c) {
+    console.log(`Saved. ${ports.join(', ')} will be forwarded when the container starts (\`dc up\`).`);
+    return 0;
+  }
+  const s = await ensureForwarding(root, ports);
+  let status = 0;
+  for (const p of ports) {
+    if (s?.listening?.includes(p)) console.log(`Forwarding localhost:${p} → container port ${p}. \`dc forward --rm ${p}\` stops it.`);
+    else { status = 1; console.error(`dc forward: ${describeForward(p, s)}`); }
+  }
+  if (!s) console.error(`dc forward: the forwarding process didn't start; see ${forwardFiles(root).log}`);
+  return status;
+}
+
+// Runs inside the container for each forwarded connection: connect to the port
+// on the container's own localhost (IPv4 or IPv6) and pipe stdin/stdout to it.
+// - It prints its pid to stderr, so the relay can stop it if the client goes
+//   away while the server keeps the connection open.
+// - allowHalfOpen, and ending stdout when the server ends: either side can
+//   finish sending while the other carries on.
+// - No process.exit: stdout to a pipe is written asynchronously, so exiting early
+//   could drop the tail of the reply. Closing stdin lets node exit once it's sent.
+const RELAY_INNER = "process.stderr.write(process.pid+'\\n');"
+  + "const s=require('net').connect({port:+process.argv[1],host:'localhost',autoSelectFamily:true,allowHalfOpen:true});"
+  + "process.stdin.pipe(s);s.pipe(process.stdout,{end:false});s.on('end',()=>process.stdout.end());"
+  + "s.on('error',()=>{process.exitCode=1;process.stdin.destroy();});s.on('close',()=>process.stdin.destroy());";
+
+function dockerSpawn(args, opts) {
+  return process.env.DC_FAKE_DOCKER
+    ? spawn(process.execPath, [process.env.DC_FAKE_DOCKER, ...args], { ...opts, env: CHILD_ENV, windowsHide: true })
+    : spawn('docker', args, { ...opts, env: CHILD_ENV, windowsHide: true });
+}
+
+function dockerAsync(args) {
+  const [cmd, pre] = process.env.DC_FAKE_DOCKER ? [process.execPath, [process.env.DC_FAKE_DOCKER]] : ['docker', []];
+  return new Promise((res) => execFile(cmd, [...pre, ...args], { env: CHILD_ENV, windowsHide: true, timeout: 20000 },
+    (err, stdout) => res(err ? null : String(stdout))));
+}
+
+/** The project's running container id; null if none; undefined if docker didn't answer. */
+async function runningContainerAsync(root) {
+  const out = await dockerAsync(['ps', '--filter', `label=${LABEL}`, '--filter', 'status=running',
+    '--format', `{{.ID}}\t{{.Label "${LABEL}"}}`]);
+  if (out === null) return undefined;
+  const want = normalizeLocalFolder(root);
+  const hit = out.split('\n').map((l) => l.split('\t')).find(([, folder]) => folder && normalizeLocalFolder(folder) === want);
+  return hit ? hit[0] : null;
+}
+
+/**
+ * Claim the project's relay slot. Hard-linking a complete temp file into place
+ * is atomic and fails if the file exists, so no one ever sees an empty claim.
+ * Returns false when a live relay already holds it.
+ */
+function claimRelay(f) {
+  const tmp = `${f.relay}.${process.pid}.claim`;
+  writeFileSync(tmp, JSON.stringify({ pid: process.pid, ts: Date.now(), listening: [], errors: {} }));
+  try {
+    for (let i = 0; i < 3; i++) {
+      try { linkSync(tmp, f.relay); return true; } catch (e) {
+        if (e.code !== 'EEXIST') { renameSync(tmp, f.relay); return true; } // no hard links here
+        if (relayLive(readJson(f.relay))) return false;
+        rmSync(f.relay, { force: true }); // a dead relay's leftover
+      }
+    }
+    return false;
+  } finally { rmSync(tmp, { force: true }); }
+}
+
+/** The background relay (`dc __relay <root>`). One per project. */
+async function relayMain(root) {
+  const f = forwardFiles(root);
+  mkdirSync(f.dir, { recursive: true });
+  if (!claimRelay(f)) return 0;
+  writeFileSync(f.log, '');
+  const log = (msg) => { try { appendFileSync(f.log, `${new Date().toISOString()} ${msg}\n`); } catch { /* ignore */ } };
+  log(`relay ${process.pid} started for ${root}`);
+
+  let container = null;
+  const servers = new Map(); // port -> net.Server[]
+  const errors = {};
+  const publish = () => {
+    try {
+      writeJson(f.relay, { pid: process.pid, ts: Date.now(), listening: [...servers.keys()].sort((a, b) => a - b), errors });
+    } catch (e) { log(`could not write state: ${e.message}`); }
+  };
+
+  const onConnection = (port) => (sock) => {
+    const target = container;
+    const child = dockerSpawn(['exec', '-i', target, 'node', '-e', RELAY_INNER, String(port)], { stdio: ['pipe', 'pipe', 'pipe'] });
+    let innerPid = '';
+    child.stderr.on('data', (d) => { if (innerPid.length < 16) innerPid += d; });
+    sock.pipe(child.stdin);
+    child.stdout.pipe(sock); // ends sock once the container side has sent everything
+    child.on('close', (code) => {
+      if (code) log(`connection to ${port} ended with docker exec exit code ${code}`);
+      sock.end();
+    });
+    child.on('error', (e) => { log(`docker exec failed: ${e.message}`); sock.destroy(); });
+    child.stdin.on('error', () => {});
+    sock.on('error', () => {});
+    // A client that closes looks, at first, like one that has only finished
+    // sending (both send FIN), so its socket closes fully once the server next
+    // writes to it. Servers that hold connections open (WebSockets, streams)
+    // send heartbeats, which is when this cleanup runs.
+    sock.on('close', () => {
+      if (child.exitCode !== null) return;
+      // The client is gone. Ending stdin lets the inner node finish; if the
+      // server keeps its end open, stop it in the container.
+      child.stdin.end();
+      setTimeout(() => {
+        if (child.exitCode !== null) return;
+        const pid = parseInt(innerPid, 10);
+        if (pid > 0) dockerSpawn(['exec', target, 'kill', String(pid)], { stdio: 'ignore' }).on('error', () => {});
+        child.kill();
+      }, 3000).unref();
+    });
+  };
+
+  const listen = (port, host) => new Promise((res) => {
+    // allowHalfOpen: a client that finishes sending still gets the reply.
+    const srv = createServer({ allowHalfOpen: true }, onConnection(port));
+    srv.once('error', (e) => res({ srv: null, err: e }));
+    srv.listen(port, host, () => res({ srv, err: null }));
+  });
+
+  const BUSY = 'something on this machine is already using that port';
+  const open = async (port) => {
+    const v4 = await listen(port, '127.0.0.1');
+    if (!v4.srv) { errors[port] = v4.err.code === 'EADDRINUSE' ? BUSY : v4.err.message; return; }
+    // Browsers may try ::1 for "localhost". A host server already on ::1 would
+    // take those requests instead of the container, so that counts as busy; a
+    // host without IPv6 just gets IPv4.
+    const v6 = await listen(port, '::1');
+    if (!v6.srv && v6.err.code === 'EADDRINUSE') { v4.srv.close(); errors[port] = BUSY; return; }
+    servers.set(port, v6.srv ? [v4.srv, v6.srv] : [v4.srv]);
+    delete errors[port];
+    log(`listening on ${port}`);
+  };
+
+  const close = (port) => {
+    for (const srv of servers.get(port) || []) srv.close();
+    servers.delete(port);
+    log(`stopped ${port}`);
+  };
+
+  const shutdown = (why) => {
+    log(`exiting: ${why}`);
+    for (const port of [...servers.keys()]) close(port);
+    if (readJson(f.relay)?.pid === process.pid) rmSync(f.relay, { force: true });
+    process.exit(0);
+  };
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('uncaughtException', (e) => { log(`error: ${e.stack || e}`); shutdown('error'); });
+  process.on('unhandledRejection', (e) => { log(`error: ${e?.stack || e}`); shutdown('error'); });
+
+  let dockerOk = Date.now();
+  for (;;) {
+    const wanted = readForwards(root);
+    if (!wanted.length) shutdown('no ports to forward');
+    const c = await runningContainerAsync(root);
+    if (c === null) shutdown('container is not running');
+    if (c === undefined) {
+      if (Date.now() - dockerOk > DOCKER_GRACE_MS) shutdown('Docker is not answering');
+    } else {
+      dockerOk = Date.now();
+      container = c;
+      for (const port of wanted) if (!servers.has(port)) await open(port);
+      for (const port of [...servers.keys()]) if (!wanted.includes(port)) close(port);
+      for (const port of Object.keys(errors)) if (!wanted.includes(+port)) delete errors[port];
+    }
+    // Another relay took over (say, after this one was suspended): step aside.
+    const cur = readJson(f.relay);
+    if (cur && cur.pid !== process.pid) shutdown('replaced by another relay');
+    publish();
+    await sleep(POLL_MS);
+  }
 }
 
 function requireRoot() {
@@ -554,6 +963,8 @@ const HELP = `dc — dev containers without VS Code
   dc down                          stop the container
   dc rm [--volumes] [--yes]        stop and remove it (--volumes: delete agent data too)
   dc volumes [--rm | --prune]      list or delete saved agent data (--yes: don't ask)
+  dc forward [<port>...]           forward ports to localhost, or list them
+  dc forward --rm <port>...        stop forwarding them
   dc status                        show this project's containers
   dc logs [--follow]               container logs
   dc doctor                        check prerequisites
@@ -582,6 +993,12 @@ async function main(argv) {
   if (cmd === 'volumes') {
     const unknown = [...flags].filter((f) => !['--rm', '--prune', '--yes'].includes(f));
     if (unknown.length) { console.error(`dc volumes: unknown option ${unknown.join(' ')}`); return 1; }
+  }
+  // The background relay `dc forward` starts; not a user command.
+  if (cmd === '__relay') return relayMain(rest[0]);
+  if (cmd === 'forward') {
+    const unknown = [...flags].filter((f) => f !== '--rm');
+    if (unknown.length) { console.error(`dc forward: unknown option ${unknown.join(' ')}`); return 1; }
   }
   if (cmd === 'rm') {
     const unknown = [...flags].filter((f) => !['--volumes', '--yes'].includes(f));
@@ -615,7 +1032,9 @@ async function main(argv) {
       }
       if (flags.has('--rebuild') || flags.has('--fresh')) a.push('--remove-existing-container');
       if (flags.has('--no-cache')) a.push('--build-no-cache');
-      return dc(a);
+      const status = dc(a);
+      if (status === 0) await resumeForwards(root);
+      return status;
     }
     case 'build':
       return dc(['build', '--workspace-folder', root, ...(flags.has('--no-cache') ? ['--no-cache'] : [])]);
@@ -646,14 +1065,24 @@ async function main(argv) {
         listVolumes(volumes);
         console.log('`dc volumes --rm` deletes it.');
       }
+      const ports = readForwards(root);
+      if (ports.length) console.log(`Forwarding of ${ports.join(', ')} stops with the container; \`dc up\` starts it again.`);
       return 0;
     }
     case 'volumes':
       return cmdVolumes(root, flags);
+    case 'forward':
+      return cmdForward(root, flags, rest);
     case 'status': {
       const cs = findContainers(root);
       if (!cs.length) { reportNoMatch(root); return 0; }
       for (const c of cs) console.log(`${c.id}  ${c.state}  ${c.folder}`);
+      const ports = readForwards(root);
+      if (ports.length) {
+        const st = runningContainer(root) ? relayStatus(root) : null;
+        console.log('forwards:');
+        for (const port of ports) console.log(`  ${describeForward(port, st)}`);
+      }
       return 0;
     }
     case 'logs': {
