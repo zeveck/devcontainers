@@ -689,6 +689,16 @@ async function relayMain(root) {
     const child = dockerSpawn(['exec', '-i', target, 'node', '-e', RELAY_INNER, String(port)], { stdio: ['pipe', 'pipe', 'pipe'] });
     let innerPid = '';
     child.stderr.on('data', (d) => { if (innerPid.length < 16) innerPid += d; });
+    if (process.env.DC_RELAY_TRACE) {
+      const id = Math.random().toString(36).slice(2, 6);
+      log(`[${id}] connection on ${port}`);
+      sock.on('end', () => log(`[${id}] client finished sending`));
+      sock.on('close', () => log(`[${id}] client socket closed`));
+      child.stdout.on('data', (d) => log(`[${id}] ${d.length} bytes from container`));
+      child.stdout.on('end', () => log(`[${id}] container side finished sending`));
+      child.stderr.on('data', (d) => log(`[${id}] stderr: ${String(d).trim()}`));
+      child.on('close', (code) => log(`[${id}] docker exec closed, code ${code}`));
+    }
     sock.pipe(child.stdin);
     child.stdout.pipe(sock); // ends sock once the container side has sent everything
     child.on('close', (code) => {

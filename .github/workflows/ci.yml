@@ -20,11 +20,30 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '20' }
 
+      - name: Inner relay script on its own
+        timeout-minutes: 2
+        shell: bash
+        run: |
+          node -e "require('net').createServer({allowHalfOpen:true},s=>{let b='';s.on('data',d=>b+=d);s.on('end',()=>s.end(b.toUpperCase()))}).listen(45999,'127.0.0.1',()=>console.log('server up'))" &
+          sleep 1
+          INNER=$(node --input-type=module -e "const m=await import('./.devcontainer/dc.mjs');" 2>/dev/null; grep -o 'const RELAY_INNER = .*' .devcontainer/dc.mjs | head -1)
+          node -e "
+            const src=require('fs').readFileSync('.devcontainer/dc.mjs','utf8');
+            const m=src.match(/const RELAY_INNER = ([\s\S]*?);\n/);
+            const inner=eval(m[1]);
+            const c=require('child_process').spawn(process.execPath,['-e',inner,'45999'],{stdio:['pipe','pipe','pipe']});
+            let out='';c.stdout.on('data',d=>out+=d);c.stderr.on('data',d=>console.log('stderr:',String(d).trim()));
+            c.on('close',code=>{console.log('inner exit',code,'reply',JSON.stringify(out));process.exit(out==='HELLO'?0:1)});
+            c.stdin.end('hello');
+            setTimeout(()=>{console.log('timed out; reply so far',JSON.stringify(out));process.exit(1)},20000);
+          "
+
       - name: Forward tests (alone, to see a hang)
         timeout-minutes: 5
         run: node test/forward.test.mjs
         env:
           DC_TEST_TRACE: '1'
+          DC_RELAY_TRACE: '1'
 
       - name: Unit tests
         run: node --test --test-reporter=spec
