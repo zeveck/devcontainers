@@ -132,7 +132,9 @@ async function setup(t, { running = true } = {}) {
   writeFileSync(join(dir, 'devcontainer.mjs'), FAKE_DEVCONTAINER);
 
   // The "container's" server: echoes back what it receives, uppercased.
+  const sockets = new Set();
   const server = createServer((s) => {
+    sockets.add(s); s.on('close', () => sockets.delete(s));
     let buf = '';
     s.on('data', (d) => { buf += d; });
     s.on('end', () => s.end(buf.toUpperCase()));
@@ -160,17 +162,23 @@ async function setup(t, { running = true } = {}) {
     return f ? JSON.parse(readFileSync(join(d, f), 'utf8')) : null;
   };
   t.after(async () => {
-    // Show what the relay and the fake docker did, for diagnosing CI.
-    try {
-      const { readdirSync } = require_fs;
-      for (const f of readdirSync(env.DC_STATE_DIR).filter((x) => x.endsWith('.log'))) {
-        t.diagnostic(`${f}:\n${readFileSync(join(env.DC_STATE_DIR, f), 'utf8').trim()}`);
-      }
-    } catch { /* no state */ }
+    // With DC_TEST_TRACE, show what the relay and the fake docker did.
+    if (process.env.DC_TEST_TRACE) {
+      try {
+        const { readdirSync } = require_fs;
+        for (const f of readdirSync(env.DC_STATE_DIR).filter((x) => x.endsWith('.log'))) {
+          console.error(`--- ${f}\n${readFileSync(join(env.DC_STATE_DIR, f), 'utf8').trim()}`);
+        }
+      } catch { /* no state */ }
+      try { console.error(`--- docker calls\n${readFileSync(env.FAKE_LOG, 'utf8').trim()}`); } catch { /* none */ }
+    }
     // Read the relay's pid before removing its state, then make sure it's gone.
     const r = relayFile();
     rmSync(env.DC_STATE_DIR, { recursive: true, force: true });
     try { if (r) process.kill(r.pid); } catch { /* gone */ }
+    // close() waits for open connections, so end them first: a failed test can
+    // leave one open, and cleanup must not hang on it.
+    for (const s of sockets) s.destroy();
     await new Promise((r) => server.close(r));
     rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   });
