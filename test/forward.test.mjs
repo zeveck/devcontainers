@@ -3,7 +3,7 @@
 // `docker exec -i <id> node -e <script> <port>` really runs the relay's inner
 // script, against a local test server, so the whole data path is exercised.
 
-import { test as nodeTest } from 'node:test';
+import { test as nodeTest, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -15,6 +15,16 @@ import { parsePorts, stateDir } from '../.devcontainer/dc.mjs';
 
 // A hang becomes a named failure instead of stalling the whole run.
 const test = (name, fn) => nodeTest(name, { timeout: 60000 }, fn);
+
+// If something keeps this file's process alive after its tests, say what.
+after(() => {
+  setTimeout(() => {
+    const handles = process._getActiveHandles().map((h) => h?.constructor?.name + (h?.pid ? ` pid=${h.pid}` : '')
+      + (h?.spawnargs ? ` ${h.spawnargs.join(' ').slice(0, 120)}` : '') + (typeof h?.address === 'function' && h.address() ? ` ${JSON.stringify(h.address())}` : ''));
+    console.error(`still running 10s after the tests:\n  ${handles.join('\n  ')}`);
+    process.exit(1);
+  }, 10000).unref();
+});
 
 const DC = resolve(fileURLToPath(import.meta.url), '../../.devcontainer/dc.mjs');
 
